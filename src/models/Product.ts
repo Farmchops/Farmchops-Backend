@@ -12,12 +12,12 @@ export interface IProduct extends Document {
   // Dual Pricing Structure - Core Feature
   pricing: {
     retail: {
-      price: number; // in kobo
+      price: number; 
       unit: string; // e.g., "per kg", "per piece"
       minQuantity: number;
     };
     bulk: {
-      price: number; // in kobo  
+      price: number; 
       unit: string; // e.g., "per 25kg bag", "per crate"
       minQuantity: number;
     };

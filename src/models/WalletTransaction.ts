@@ -1,133 +1,126 @@
-import mongoose, { Document, Schema} from 'mongoose';
-import bcrypt from 'bcryptjs'
+import mongoose, { Document, Model, Schema, Types } from 'mongoose';
 
-export interface IUser extends Document {
-    email: string;
-    password: string;
-    fullName: string;
-    phone: string;
-    role: 'customer' | 'admin';
-    profile: {
-        address?: string;
-        dateOfBirth?: Date;
-        isVerified: boolean
-    };
-    wallet: {
-        balance: number;
-    };
-    isActive: boolean;
+export interface IWalletTransaction extends Document {
+    userId: Types.ObjectId;
+    type: 'credit' | 'debit' | 'refund';
+    amount: number;
+    orderId?: Types.ObjectId;
+    description?: string;
+    reference: string;
+    balanceBefore: number;
+    balanceAfter: number;
+    status: 'pending' | 'completed' | 'failed';
     createdAt: Date;
     updatedAt: Date;
-
-    comparePassword(candidatePassword: string): Promise<boolean>;
-    toJSON(): any;
 }
 
-const UserSchema = new Schema<IUser>({
-    email: {
-        type: String,
-        required: [ true, 'Email is required'],
-        unique: true,
-        lowercase: true,
-        trim: true,
-        match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+export interface IWalletTransactionModel extends Model<IWalletTransaction> {
+    createTransaction(transactionData: {
+        userId: Types.ObjectId;
+        type: 'credit' | 'debit' | 'refund';
+        amount: number;
+        orderId?: Types.ObjectId;
+        description?: string;
+    }): Promise<IWalletTransaction>;
+}
+
+const WalletTransactionSchema = new Schema({
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: [true, 'User ID is required']
     },
-    
-    password: {
+
+    type: {
         type: String,
-        required: [true, 'Password is required'],
-        minlength: [6, 'Password must be at least 6 characters'],
-        select: false
+        enum: ['credit', 'debit', 'refund'],
+        required: [true, 'Transaction type is required']
     },
 
-    fullName: {
+    amount: {
+        type: Number,
+        required: [true, 'Amount is required'],
+        min: [1, 'Amount must be at least 1 kobo']
+    },
+
+    orderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Order'
+    },
+
+    description: {
         type: String,
-        required: [true, 'Full name is required'],
         trim: true,
-     },
+        maxlength: [200, 'Description cannot exceed 200 characters']
+    },
 
-     phone: {
+    reference: {
         type: String,
-        required: [true, 'Phone number is required'],
-        trim: true,
-        match: [/^(\+234|0)[789][01]\d{8}$/, 'Please enter a valid Nigerian phone number']
-     },
-     
-     role: {
+        required: true,
+        unique: true
+    },
+
+    balanceBefore: {
+        type: Number,
+        required: true
+    },
+
+    balanceAfter: {
+        type: Number,
+        required: true
+    },
+
+    status: {
         type: String,
-        enum: [ 'customer', 'admin'],
-        default: 'customer'
-     },
-
-     profile: {
-        address: {
-            type: String,
-            trim: true,
-            maxlength: [200, 'Address cannot exceed 200 characters ']
-        },
-
-        dateOfBirth: {
-            type: Date
-        },
-
-        isVerified: {
-            type: Boolean,
-            default: false
-        }
-     },
-
-     wallet: {
-        balance: {
-            type: Number,
-            default: 0,
-            min: [0, 'Wallet balance cannot be negative']
-        }
-     },
-
-     isActive: {
-        type: Boolean,
-        default: true
-     }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true},
-    toObject: { virtuals: true}
-});
-
-UserSchema.index({ email: 1 });
-UserSchema.index({ phone: 1 });
-UserSchema.index({ role: 1 });
-UserSchema.index({ createdAt: -1})
-
-UserSchema.pre('save', async function(next) {
-    if (!this.isModified('password')) return next();
-
-    try {
-        const salt = await bcrypt.genSalt(12);
-        this.password = await bcrypt.hash(this.password, salt);
-        next();
-    }   catch (error) {
-        next(error as Error);
+        enum: ['pending', 'completed', 'failed'],
+        default: 'pending'
     }
+}, {
+    timestamps: true
 });
 
-UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
-    return bcrypt.compare(candidatePassword, this.password);
+// Indexes
+WalletTransactionSchema.index({ userId: 1, createdAt: -1 }); // User transaction history
+WalletTransactionSchema.index({ reference: 1 }); // Transaction lookups
+WalletTransactionSchema.index({ orderId: 1 }); // Order related transactions
+WalletTransactionSchema.index({ type: 1, status: 1 }); // Transaction analytics
+
+// Static method to create a transaction
+WalletTransactionSchema.statics.createTransaction = async function(transactionData) {
+    const user = await mongoose.model('User').findById(transactionData.userId);
+    if (!user) {
+        throw new Error('User not found');
+    }
+
+    const currentBalance = user.wallet.balance;
+    const newBalance = transactionData.type === 'credit' || transactionData.type === 'refund'
+        ? currentBalance + transactionData.amount
+        : currentBalance - transactionData.amount;
+
+    if (transactionData.type === 'debit' && newBalance < 0) {
+        throw new Error('Insufficient wallet balance');
+    }
+
+    // Generate unique reference
+    const reference = `TXN-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`.toUpperCase();
+
+    const transaction = await this.create({
+        ...transactionData,
+        reference,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        status: 'completed'
+    });
+
+    // Update user's wallet balance
+    await user.updateOne({
+        $set: { 'wallet.balance': newBalance }
+    });
+
+    return transaction;
 };
 
-UserSchema.methods.toJSON = function() {
-    const userObject = this.toObject()
-
-    delete userObject.password;
-    delete userObject._V;
-
-    return userObject;
-}
-
-UserSchema.statics.findActive = function() {
-    return this.find({ isActive: true });
-}
-
-const User = mongoose.model<IUser>('User', UserSchema);
-
-export default User;
+export const WalletTransaction = mongoose.model<IWalletTransaction, IWalletTransactionModel>(
+    'WalletTransaction',
+    WalletTransactionSchema
+);
