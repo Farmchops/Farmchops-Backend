@@ -208,7 +208,6 @@ export const forgotPassword = async (
 
     const user = await User.findOne({ email });
 
-    // Always return success (security best practice)
     if (!user) {
       return res.json({
         success: true,
