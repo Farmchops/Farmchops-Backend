@@ -1,0 +1,3 @@
+[submodule "FarmChops-Frontend"]
+	path = FarmChops-Frontend
+	url = https://github.com/odey123/FarmChops-Frontend.git
