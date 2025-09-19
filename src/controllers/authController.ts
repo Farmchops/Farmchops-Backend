@@ -2,8 +2,16 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import generateToken from "../utils/generateToken";
+import User from '../models/User';
 import { IUser } from '../models/User';
 import { AuthResponse, ResetCodeResponse, ProfileResponse } from '../types/auth.types';
+
+/**
+ * Helper function to check if user profile is complete
+ */
+export const checkProfileComplete = (user: IUser): boolean => {
+  return !!(user.fullName && user.phone && user.profile?.address);
+};
 
 /**
  * @desc Register new user
@@ -15,57 +23,61 @@ export const register = async (
   res: Response<AuthResponse>
 ): Promise<Response<AuthResponse>> => {
   try {
-    const { email, password, fullName, phone } = req.body;
-    const User = mongoose.model("User");
-
+    const { email, password } = req.body;
     // Check if user already exists
-    const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: existingUser.email === email
-          ? "User with this email already exists"
-          : "User with this phone number already exists"
+        message: "User with this email already exists"
       });
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user
-    const user = new User({
+    // Create user with minimal data
+    const userData = new User({
       email,
       password: hashedPassword,
-      fullName,
-      phone,
       role: "customer",
       wallet: { balance: 0 },
       isActive: true,
-      isVerified: false
+      profile: { isVerified: false }
     });
 
-    await user.save();
+
+  
+  const user = new User(userData);
+  
+
+  await user.save();
 
     // Generate token
-    const token = generateToken(user._id.toString(), user.role);
+    const token = generateToken(String(user._id), user.role);
 
     // Remove password from response
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    const { password: _, ...userResponse } = user.toObject();
 
     return res.status(201).json({
       success: true,
       message: "User registered successfully",
-      data: { user: userResponse, token }
+      data: { user: userResponse as any, token }
     });
   } catch (error) {
-    console.error("Registration error:", error);
-    return res.status(500).json({ 
-      success: false, 
-      message: "Server error during registration" 
-    });
+    const err = error as any
+  console.error("FULL Registration error:", JSON.stringify(error, null, 2));
+  console.error("Error name:", err.name);
+  console.error("Error message:", err.message);
+  if (err.errors) {
+    console.error("Validation errors:", err.errors);
   }
-};
+  return res.status(500).json({ 
+    success: false, 
+    message: "Server error during registration" 
+  });
+ };
+}
 
 /**
  * @desc Login user
@@ -78,7 +90,6 @@ export const login = async (
 ): Promise<Response<AuthResponse>> => {
   try {
     const { email, password } = req.body;
-    const User = mongoose.model("User");
 
     // Find user
     const user = await User.findOne({ email }).select("+password");
@@ -101,15 +112,15 @@ export const login = async (
     }
 
     // Generate token
-    const token = generateToken(user._id.toString(), user.role);
+    const token = generateToken(String(user._id), user.role);
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    // Remove password from response
+    const { password: _, ...userResponse } = user.toObject();
 
     return res.json({
       success: true,
       message: "Login successful",
-      data: { user: userResponse, token }
+      data: { user: userResponse as any, token }
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -131,7 +142,10 @@ export const getProfile = async (
     return res.json({
       success: true,
       message: "Profile retrieved successfully",
-      data: { user }
+      data: { 
+        user,
+        profileComplete: checkProfileComplete(user)
+      } as any
     });
   } catch (error) {
     console.error("Get profile error:", error);
@@ -154,7 +168,6 @@ export const updateProfile = async (
   try {
     const user = (req as any).user;
     const { fullName, phone, address } = req.body;
-    const User = mongoose.model("User");
 
     // Ensure phone number unique
     if (phone && phone !== user.phone) {
@@ -169,9 +182,9 @@ export const updateProfile = async (
 
     // Update
     const updateData: any = {};
-    if (fullName) updateData.fullName = fullName;
-    if (phone) updateData.phone = phone;
-    if (address) updateData.address = address;
+    if (fullName !== undefined) updateData.fullName = fullName;
+    if (phone !== undefined) updateData.phone = phone;
+    if (address !== undefined) updateData['profile.address'] = address;
 
     const updatedUser = await User.findByIdAndUpdate(
       user._id,
@@ -182,7 +195,10 @@ export const updateProfile = async (
     return res.json({
       success: true,
       message: "Profile updated successfully",
-      data: { user: updatedUser }
+      data: { 
+        user: updatedUser as any,
+        profileComplete: checkProfileComplete(updatedUser as IUser)
+      } as any
     });
   } catch (error) {
     console.error("Update profile error:", error);
@@ -191,7 +207,7 @@ export const updateProfile = async (
       message: "Server error updating profile"
     });
   }
-};
+}
 
 /**
  * @desc Request password reset
@@ -204,7 +220,6 @@ export const forgotPassword = async (
 ): Promise<Response<ResetCodeResponse>> => {
   try {
     const { email } = req.body;
-    const User = mongoose.model("User");
 
     const user = await User.findOne({ email });
 
@@ -252,7 +267,6 @@ export const resetPassword = async (
 ): Promise<Response<AuthResponse>> => {
   try {
     const { email, resetCode, newPassword } = req.body;
-    const User = mongoose.model("User");
 
     const user = await User.findOne({
       email,
@@ -299,4 +313,4 @@ export const logout = async (
     success: true, 
     message: "Logged out successfully" 
   });
-};
+}  

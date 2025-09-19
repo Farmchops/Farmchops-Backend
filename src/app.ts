@@ -8,6 +8,8 @@ import DatabaseConnection from './config/database';
 
 import category from './routes/categoryRoutes'
 import auth from './routes/authRoutes'
+import product from './routes/productsRoutes'
+import cart from './routes/cartRoutes'
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +27,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/categories', category)
 app.use('/api/auth', auth)
+app.use('/api/product', product)
+app.use('/api/cart', cart)
 
 // Health check route
 app.get('/health', async (req, res) => {

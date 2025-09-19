@@ -1,3 +1,5 @@
+// src/controllers/categoryController.ts
+/// <reference path="../types/express/index.d.ts" />
 import { Request, Response } from 'express'
 import { Category, ICategory } from '../models/Category';
 import { Product } from '../models/Product'

@@ -15,6 +15,8 @@ export interface IUser extends Document {
     wallet: {
         balance: number;
     };
+    emailVerificationCode?: string;
+    emailVerificationExpires?: Date;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -42,21 +44,31 @@ const UserSchema = new Schema<IUser>({
 
     fullName: {
         type: String,
-        required: [true, 'Full name is required'],
+        required: false, 
         trim: true,
      },
 
      phone: {
         type: String,
-        required: [true, 'Phone number is required'],
+        required: false,
         trim: true,
-        match: [/^(\+234|0)[789][01]\d{8}$/, 'Please enter a valid Nigerian phone number']
+        // match: [/^(\+234|0)[789][01]\d{8}$/, 'Please enter a valid Nigerian phone number']
      },
      
      role: {
         type: String,
         enum: [ 'customer', 'admin'],
         default: 'customer'
+     },
+
+     emailVerificationCode:{
+        type: String,
+        select: false
+     },
+
+     emailVerificationExpires: {
+        type: Date,
+        select: false
      },
 
      profile: {
@@ -94,7 +106,11 @@ const UserSchema = new Schema<IUser>({
     toObject: { virtuals: true}
 });
 
-UserSchema.index({ email: 1 });
 UserSchema.index({ phone: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ createdAt: -1});
+
+
+
+const User = mongoose.model<IUser>("User", UserSchema)
+export default User;

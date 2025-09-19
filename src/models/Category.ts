@@ -50,7 +50,6 @@ const CategorySchema: Schema = new Schema({
     toObject: { virtuals: true}
 });
 
-CategorySchema.index({ slug:1 });
 CategorySchema.index({ isActive: 1})
 
 CategorySchema.pre<ICategory>('save', function(next) {

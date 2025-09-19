@@ -192,7 +192,6 @@ const ProductSchema: Schema = new Schema({
 
 // Essential Indexes for MVP Performance
 ProductSchema.index({ category: 1, status: 1 });
-ProductSchema.index({ slug: 1 });
 ProductSchema.index({ name: 'text', description: 'text' }); // Search functionality
 ProductSchema.index({ 'stats.orderCount': -1 }); // Popular products
 
