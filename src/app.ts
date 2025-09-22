@@ -15,7 +15,7 @@ import cart from './routes/cartRoutes'
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 
 // Middleware
 app.use(helmet());
@@ -114,7 +114,7 @@ async function startServer() {
     //await RedisConnection.connect();
     
     // Start Express server
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on port ${PORT}`);
       //console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
       //console.log(`Health check: http://localhost:${PORT}/health`);
