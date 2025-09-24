@@ -10,6 +10,8 @@ import category from './routes/categoryRoutes'
 import auth from './routes/authRoutes'
 import product from './routes/productsRoutes'
 import cart from './routes/cartRoutes'
+import emailService from './services/emailService';
+
 
 // Load environment variables
 dotenv.config();
@@ -110,6 +112,7 @@ async function startServer() {
     console.log('Starting Farmchops API...');
     await DatabaseConnection.connect();
     
+    await emailService.testConnection()
     // Connect to Redis (optional)
     //await RedisConnection.connect();
     

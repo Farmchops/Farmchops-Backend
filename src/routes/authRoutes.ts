@@ -1,20 +1,21 @@
 // src/routes/authRoutes.ts
 import { Router } from 'express';
 import {
-  register,
   login,
   logout,
   forgotPassword,
   resetPassword,
   getProfile,
-  updateProfile
+  updateProfile,
+  sendVerificationEmail,
+  verifyEmailAndRegister,
+  resendVerificationEmail
 } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-// POST /api/auth/register - User registration
-router.post('/register', register);
+
 
 // POST /api/auth/login - User login (JWT)
 router.post('/login', login);
@@ -33,5 +34,14 @@ router.get('/profile', authenticateToken, getProfile);
 
 // PUT /api/auth/profile - Update user profile
 router.put('/profile', authenticateToken, updateProfile);
+
+// POST /api/auth/signup
+router.post('/signup', sendVerificationEmail);
+
+// POST /api/auth/signup/complete
+router.post('/signup/complete', verifyEmailAndRegister);
+
+// POST /api/auth/resend-verification
+router.post('/resend-verification', resendVerificationEmail);
 
 export default router;

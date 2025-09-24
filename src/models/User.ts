@@ -4,7 +4,8 @@ import bcrypt from 'bcryptjs'
 export interface IUser extends Document {
     email: string;
     password: string;
-    fullName: string;
+    firstName: string;
+    lastName: string;
     phone: string;
     role: 'customer' | 'admin';
     profile: {
@@ -17,6 +18,8 @@ export interface IUser extends Document {
     };
     emailVerificationCode?: string;
     emailVerificationExpires?: Date;
+    passwordResetToken?: string;
+    passwordResetExpires?: Date;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -37,17 +40,24 @@ const UserSchema = new Schema<IUser>({
     
     password: {
         type: String,
-        required: [true, 'Password is required'],
+         required: function() {
+      // Password is only required if the user is verified
+      return this.profile?.isVerified === true;
+       },
         minlength: [6, 'Password must be at least 6 characters'],
         select: false
     },
 
-    fullName: {
+    firstName: {
         type: String,
         required: false, 
         trim: true,
      },
-
+    lastName: {
+        type: String,
+        required: false, 
+        trim: true,
+     },
      phone: {
         type: String,
         required: false,
@@ -70,7 +80,14 @@ const UserSchema = new Schema<IUser>({
         type: Date,
         select: false
      },
-
+     passwordResetToken: {
+        type: String,
+        select: false
+     },
+     passwordResetExpires: {
+        type: Date,
+        select: false
+     },
      profile: {
         address: {
             type: String,

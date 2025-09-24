@@ -25,7 +25,7 @@ class DatabaseConnection {
       await mongoose.connect(mongoUri);
       
       this.isConnected = true;
-      console.log('Mong DB connected successfully');
+      console.log('Mongo DB connected successfully');
       
       // Connection event listeners
       mongoose.connection.on('connected', () => {

@@ -5,85 +5,16 @@ import generateToken from "../utils/generateToken";
 import User from '../models/User';
 import { IUser } from '../models/User';
 import { AuthResponse, ResetCodeResponse, ProfileResponse } from '../types/auth.types';
+import emailService from "../services/emailService";
 
 /**
  * Helper function to check if user profile is complete
  */
 export const checkProfileComplete = (user: IUser): boolean => {
-  return !!(user.fullName && user.phone && user.profile?.address);
+  return !!(user.firstName && user.lastName && user.phone && user.profile?.address);
 };
 
-/**
- * @desc Register new user
- * @route POST /api/auth/register
- * @access Public
- */
-export const register = async (
-  req: Request,
-  res: Response<AuthResponse>
-): Promise<Response<AuthResponse>> => {
-  try {
-    const { email, password } = req.body;
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: "User with this email already exists"
-      });
-    }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create user with minimal data
-    const userData = new User({
-      email,
-      password: hashedPassword,
-      role: "customer",
-      wallet: { balance: 0 },
-      isActive: true,
-      profile: { isVerified: false }
-    });
-
-
-  
-  const user = new User(userData);
-  
-
-  await user.save();
-
-    // Generate token
-    const token = generateToken(String(user._id), user.role);
-
-    // Remove password from response
-    const { password: _, ...userResponse } = user.toObject();
-
-    return res.status(201).json({
-      success: true,
-      message: "User registered successfully",
-      data: { user: userResponse as any, token }
-    });
-  } catch (error) {
-    const err = error as any
-  console.error("FULL Registration error:", JSON.stringify(error, null, 2));
-  console.error("Error name:", err.name);
-  console.error("Error message:", err.message);
-  if (err.errors) {
-    console.error("Validation errors:", err.errors);
-  }
-  return res.status(500).json({ 
-    success: false, 
-    message: "Server error during registration" 
-  });
- };
-}
-
-/**
- * @desc Login user
- * @route POST /api/auth/login
- * @access Public
- */
 export const login = async (
   req: Request,
   res: Response<AuthResponse>
@@ -240,13 +171,18 @@ export const forgotPassword = async (
     });
 
     // TODO: Send via email/SMS
-    console.log(`Password reset code for ${email}: ${resetCode}`);
-
+    const emailSent = await emailService.sendPasswordResetEmail(email, resetCode)
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send reset email. Please try again"
+      })
+    }
     return res.json({
       success: true,
-      message: "If an account with that email exists, a password reset code has been sent.",
+      message: "Password reset code sent successfully.",
       data: process.env.NODE_ENV === "development" ? { resetCode } : undefined
-    } as ResetCodeResponse);
+    }as ResetCodeResponse)
   } catch (error) {
     console.error("Forgot password error:", error);
     return res.status(500).json({
@@ -314,3 +250,191 @@ export const logout = async (
     message: "Logged out successfully" 
   });
 }  
+
+/**
+ * @desc Send verification email with code
+ * @route POST /api/auth/send-verification-email
+ * @access Public
+ */
+export const sendVerificationEmail = async (
+  req: Request,
+  res: Response<ResetCodeResponse>
+): Promise<Response<ResetCodeResponse>> => {
+  try {
+    const { email } = req.body;
+
+    // Check if user already exists and is verified
+    const existingUser = await User.findOne({ email });
+    if (existingUser && existingUser.profile.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Account already exists. Please sign in instead."
+      });
+    }
+
+    // Generate verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    if (existingUser && !existingUser.profile.isVerified) {
+      // Update existing unverified user
+      await User.findByIdAndUpdate(existingUser._id, {
+        emailVerificationCode: verificationCode,
+        emailVerificationExpires: verificationExpires
+      });
+    } else {
+      // Create temporary user record for verification
+      const tempUser = new User({
+        email,
+        emailVerificationCode: verificationCode,
+        emailVerificationExpires: verificationExpires,
+        profile: { isVerified: false },
+        isActive: false // Inactive until verified
+      });
+      await tempUser.save();
+    }
+
+    // TODO: Send verification email
+    const emailSent = await emailService.sendVerificationEmail(email, verificationCode);
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send verification email"
+      })
+    }
+
+    return res.json({
+      success: true,
+      message: "Verification code sent to your email",
+      data: process.env.NODE_ENV === "development" ? { verificationCode } : undefined
+    } as ResetCodeResponse);
+  } catch (error) {
+    const err = error as any;
+    console.error("Send verification email error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Error sending verification email"
+    });
+  }
+};
+
+/**
+ * @desc Verify email and complete registration
+ * @route POST /api/auth/verify-email
+ * @access Public
+ */
+export const verifyEmailAndRegister = async (
+  req: Request,
+  res: Response<AuthResponse>
+): Promise<Response<AuthResponse>> => {
+  try {
+    const { email, verificationCode, password } = req.body;
+
+    // Find user with valid verification code
+    const user = await User.findOne({
+      email,
+      emailVerificationCode: verificationCode,
+      emailVerificationExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification code"
+      });
+    }
+
+    if (user.profile.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Account already exists. Please sign in instead."
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Update user with password and verify
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        password: hashedPassword,
+        role: "customer",
+        wallet: { balance: 0 },
+        isActive: true,
+        'profile.isVerified': true,
+        emailVerificationCode: undefined,
+        emailVerificationExpires: undefined
+      },
+      { new: true }
+    ).select("-password");
+
+    // Generate token
+    const token = generateToken(String(updatedUser!._id), updatedUser!.role);
+
+    return res.status(201).json({
+      success: true,
+      message: "Email verified and account created successfully",
+      data: { user: updatedUser as any, token }
+    });
+  } catch (error) {
+    const err = error as any;
+    console.error("Email verification error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Error verifying email"
+    });
+  }
+};
+
+/**
+ * @desc Resend verification email
+ * @route POST /api/auth/resend-verification
+ * @access Public
+ */
+export const resendVerificationEmail = async (
+  req: Request,
+  res: Response<ResetCodeResponse>
+): Promise<Response<ResetCodeResponse>> => {
+  try {
+    const { email } = req.body;
+
+    // Find unverified user
+    const user = await User.findOne({ 
+      email, 
+      'profile.isVerified': false 
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "No pending verification found for this email"
+      });
+    }
+
+    // Generate new verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await User.findByIdAndUpdate(user._id, {
+      emailVerificationCode: verificationCode,
+      emailVerificationExpires: verificationExpires
+    });
+
+    // TODO: Send verification email
+    console.log(`New verification code for ${email}: ${verificationCode}`);
+
+    return res.json({
+      success: true,
+      message: "New verification code sent to your email",
+      data: process.env.NODE_ENV === "development" ? { verificationCode } : undefined
+    } as ResetCodeResponse);
+  } catch (error) {
+    const err = error as any;
+    console.error("Resend verification error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Error resending verification code"
+    });
+  }
+};
