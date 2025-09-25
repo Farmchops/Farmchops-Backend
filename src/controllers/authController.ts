@@ -98,7 +98,7 @@ export const updateProfile = async (
 ): Promise<Response<ProfileResponse>> => {
   try {
     const user = (req as any).user;
-    const { fullName, phone, address } = req.body;
+    const { firstName, lastName, phone, address } = req.body;
 
     // Ensure phone number unique
     if (phone && phone !== user.phone) {
@@ -113,7 +113,8 @@ export const updateProfile = async (
 
     // Update
     const updateData: any = {};
-    if (fullName !== undefined) updateData.fullName = fullName;
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
     if (phone !== undefined) updateData.phone = phone;
     if (address !== undefined) updateData['profile.address'] = address;
 
