@@ -116,7 +116,13 @@ export const updateProfile = async (
     if (firstName !== undefined) updateData.firstName = firstName;
     if (lastName !== undefined) updateData.lastName = lastName;
     if (phone !== undefined) updateData.phone = phone;
-    if (address !== undefined) updateData['profile.address'] = address;
+   
+    if (address !== undefined) {
+      updateData.profile = {
+        ...user.profile,
+        address: address
+      }
+    }
 
     const updatedUser = await User.findByIdAndUpdate(
       user._id,
