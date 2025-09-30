@@ -9,6 +9,7 @@ import {
   getCategoryStats
 } from '../controllers/categoryController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { uploadCategoryImage } from '../middleware/uploadMiddleware';
 
 const router = Router();
 
@@ -65,6 +66,23 @@ router.put(
   ],
   updateCategory
 );
+
+router.post(
+  '/admin/categories',
+  authenticateToken,
+  requireAdmin,
+  uploadCategoryImage.single('image'), // Handle single file upload
+  createCategory
+);
+
+router.put(
+  '/admin/categories/:id',
+  authenticateToken,
+  requireAdmin,
+  uploadCategoryImage.single('image'),
+  updateCategory
+);
+
 
 router.delete('/admin/categories/:id', authenticateToken, requireAdmin, deleteCategory);
 router.get('/admin/categories-stats', authenticateToken, requireAdmin, getCategoryStats);

@@ -4,6 +4,7 @@ export interface ICategory extends Document {
     name: String;
     description?: string;
     slug: String;
+    image: String;
     isActive: boolean;
     productCount: number; // for admin dashboard
     createdAt: Date;
@@ -36,6 +37,10 @@ const CategorySchema: Schema = new Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+
+  image: {
+  type: [String], //
   },
 
   productCount: {

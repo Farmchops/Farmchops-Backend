@@ -10,6 +10,7 @@ import {
   getProductStats
 } from '../controllers/productController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { uploadProductImages } from '../middleware/uploadMiddleware';
 
 const router = Router();
 
@@ -27,6 +28,9 @@ router.get('/:slug', getProductBySlug);
 // POST /api/products - Create product (admin only)
 router.post('/', authenticateToken, requireAdmin, createProduct);
 
+router.post('/admin/products',authenticateToken, requireAdmin, uploadProductImages.array('images', 5), createProduct);
+
+router.put('/admin/products',authenticateToken, requireAdmin, uploadProductImages.array('images', 5), updateProduct);
 // PUT /api/products/:id - Update product (admin only)
 router.put('/:id', authenticateToken, requireAdmin, updateProduct);
 

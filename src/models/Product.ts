@@ -52,7 +52,6 @@ export interface IProduct extends Document {
 const ProductSchema: Schema = new Schema({
   name: {
     type: String,
-    enum: ['active', 'inactive', 'out_of_stock'] as ProductStatus[],
     required: [true, 'Product name is required'],
     trim: true,
     maxlength: [100, 'Product name cannot exceed 100 characters']
@@ -65,17 +64,16 @@ const ProductSchema: Schema = new Schema({
     maxlength: [500, 'Description cannot exceed 500 characters'] // Shorter for MVP
   },
   
-  images: [{
-    type: String,
-    required: true,
-    validate: {
-      validator: function(arr: string[]) {
-        return arr.length > 0 && arr.length <= 5; // Max 5 images
-      },
-      message: 'Product must have 1-5 images'
-    }
-  }],
-  
+  images: {
+  type: [String], // Change from [{type: String}] to just [String]
+  default: [],
+  validate: {
+    validator: function(arr: string[]) {
+      return arr.length <= 5; // Remove the > 0 check (makes it optional)
+    },
+    message: 'Product can have maximum 5 images'
+  }
+},
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',
@@ -146,8 +144,8 @@ const ProductSchema: Schema = new Schema({
   
   status: {
     type: String,
-    enum: ['active', 'inactive', 'out_of_stock'],
-    default: 'active'
+    enum: ['active', 'inactive', 'draft', 'out_of_stock'],
+    default: 'draft'
   },
   
   tags: [{
@@ -215,16 +213,12 @@ ProductSchema.virtual('bulkSavings').get(function(this: IProduct) {
 });
 
 // Pre-save: Auto-generate slug and update stock status
-ProductSchema.pre<IProduct>('save', function(next) {
-  // Generate slug from name
-  if (this.isModified('name')) {
-    this.slug = this.name
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .trim();
+ProductSchema.pre<IProduct>('validate', function(next) {
+  if (this.pricing.bulk.price >= this.pricing.retail.price) {
+    next(new Error('Bulk price must be less than retail price'));
+  } else {
+    next();
   }
-  
   // Auto-update status based on stock
   if (this.inventory.availableStock <= 0) {
     this.set('status', 'out_of_stock');

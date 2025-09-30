@@ -3,6 +3,37 @@ import { Request, Response } from 'express';
 import { Product, IProduct } from '../models/Product';
 import { Category } from '../models/Category';
 import { validationResult } from 'express-validator';
+import { deleteMultipleImages } from '../utils/imageHelper';
+
+
+
+// VALIDATION HELPER
+const validateProductImages = (images: string[] | undefined): { valid: boolean; message?: string } => {
+  if (!images) return { valid: true }; // Images are optional
+  
+  if (!Array.isArray(images)) {
+    return { valid: false, message: 'Images must be an array' };
+  }
+  
+  if (images.length > 5) {
+    return { valid: false, message: 'Maximum 5 images allowed' };
+  }
+  
+  // Check file extensions (assuming URLs end with file extensions)
+  const validExtensions = ['.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'];
+  for (const image of images) {
+    if (typeof image !== 'string') {
+      return { valid: false, message: 'Image URLs must be strings' };
+    }
+    
+    const hasValidExtension = validExtensions.some(ext => image.endsWith(ext));
+    if (!hasValidExtension) {
+      return { valid: false, message: 'Only JPG and PNG images are allowed' };
+    }
+  }
+  
+  return { valid: true };
+};
 
 // GET /api/products - List products with filters
 export const getProducts = async (req: Request, res: Response): Promise<void> => {
@@ -201,16 +232,53 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const uploadedImages = req.files as Express.Multer.File[];
+    const images = uploadedImages?.map(file => file.path) || [];
+
     const {
       name,
       description,
-      images,
       category,
       pricing,
       inventory,
       tags,
-      status = 'active'
+      status = 'draft'
     } = req.body;
+
+      // Validate bulk price < retail price
+    if (pricing?.bulk && pricing?.retail) {
+      if (pricing.bulk.price >= pricing.retail.price) {
+        // Delete uploaded images
+        if (images.length > 0) await deleteMultipleImages(images);
+        
+        res.status(400).json({
+          success: false,
+          message: 'Bulk price must be less than retail price'
+        });
+        return;
+      }
+    }
+
+    //Image validation
+    const imageValidation = validateProductImages(images);
+    if (!imageValidation.valid) {
+      res.status(400).json({
+        success: false,
+        message: imageValidation.message
+      });
+      return;
+    }
+ 
+     // BULK PRICE VALIDATION HERE
+    if (pricing?.bulk && pricing?.retail) {
+      if (pricing.bulk.price >= pricing.retail.price) {
+        res.status(400).json({
+          success: false,
+          message: 'Bulk price must be less than retail price'
+        });
+        return;
+      }
+    }
 
     // Verify category exists
     const categoryDoc = await Category.findById(category);
@@ -238,7 +306,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     const product = new Product({
       name: name.trim(),
       description: description?.trim(),
-      images: images || [],
+      images: images,
       category,
       pricing,
       inventory,
@@ -263,6 +331,11 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       data: product
     });
   } catch (error) {
+
+    const uploadedImages = req.file ? [req.file as Express.Multer.File] : [];
+    if (uploadedImages.length > 0) {
+      await deleteMultipleImages(uploadedImages.map(f => f.path))
+    }
     console.error('Create product error:', error);
     res.status(500).json({
       success: false,
@@ -295,6 +368,31 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       tags,
       status
     } = req.body;
+
+     // IMAGE VALIDATION HERE
+    if (images !== undefined) {
+      const imageValidation = validateProductImages(images);
+      if (!imageValidation.valid) {
+        res.status(400).json({
+          success: false,
+          message: imageValidation.message
+        });
+        return;
+      }
+    }
+
+    // BULK PRICE VALIDATION HERE
+    if (pricing) {
+      if (pricing.bulk && pricing.retail) {
+        if (pricing.bulk.price >= pricing.retail.price) {
+          res.status(400).json({
+            success: false,
+            message: 'Bulk price must be less than retail price'
+          });
+          return;
+        }
+      }
+    }
 
     const product = await Product.findById(id);
     if (!product) {

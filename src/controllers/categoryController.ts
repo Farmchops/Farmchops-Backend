@@ -1,15 +1,16 @@
 // src/controllers/categoryController.ts
-/// <reference path="../types/express/index.d.ts" />
-import { Request, Response } from 'express'
+import { Request, Response } from 'express';
 import { Category, ICategory } from '../models/Category';
-import { Product } from '../models/Product'
-import { validationResult } from 'express-validator'
-import { IUser } from '../models/User'
+import { Product } from '../models/Product';
+import { validationResult } from 'express-validator';
+import { deleteImage } from '../utils/imageHelper';
+//import { IUser } from '../models/User'
+//import { toString } from 'express-validator/lib/utils';
 
 //GET /api/categories
 export const getCategories = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { includeInactive } = req.query;
+        const { includeInactive, search } = req.query;
         if (!req.user) {
             res.status(401).json({
                 success: false,
@@ -20,13 +21,20 @@ export const getCategories = async (req: Request, res: Response): Promise<void> 
         const isAdmin = req.user.role === 'admin'
 
         // Only admins can see inactive categories
-        const filter = isAdmin && includeInactive === 'true'
+        const filter: any = isAdmin && includeInactive === 'true'
         ?{}
         : { isActive: true };
 
+        if (search && typeof search === 'string') {
+          filter.$or = [
+            { name: { $regex: search, $options: 'i'} },
+            {description: { $regex: search, $options: 'i'}}
+          ]
+        }
+
         const categories = await Category.find(filter)
         .sort({ name: 1 })
-        .select('name description slug isActive productCount createdAt')
+        .select('name description slug image isActive productCount createdAt')
 
         res.json({
             success: true,
@@ -101,11 +109,16 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
 
         const {name, description, isActive = true} = req.body
 
+        const image = req.file?.path
+
         const existingCategory = await Category.findOne({
             name: { $regex: new RegExp(`^${name}$`, 'i')}
         })
 
         if (existingCategory) {
+
+            if(image) await deleteImage(image);
+
             res.status(409).json({
                 success: false,
                 message: 'Category with this name already exists'
@@ -116,6 +129,7 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
             const category = new Category({
                 name: name.trim(),
                 description: description?.trim(),
+                image,
                 isActive
             });
 
@@ -127,6 +141,9 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
                 data: category
             });
         } catch (error) {
+
+          if(req.file?.path) await deleteImage(req.file.path);
+
             console.error('Create category error:', error)
             res.status(500).json({
                 success: false,
@@ -150,6 +167,7 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
 
         const { id } = req.params;
         const { name, description, isActive} = req.body
+        const newImage = req.file?.path
 
         const category = await Category.findById(id);
         if (!category) {
@@ -179,6 +197,11 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
         if (name) category.name = name.trim();
         if (description !== undefined) category.description = description?.trim()
         if (isActive !== undefined) category.isActive = isActive;
+
+        if (newImage) {
+          if (category.image) await deleteImage(category.image.toString());
+          category.image = newImage
+        }
 
         await category.save()
 
@@ -229,6 +252,10 @@ export const deleteCategory = async (req: Request, res: Response): Promise<void>
         { category: id },
         { $unset: { category: 1 } }
       );
+    }
+
+    if (category.image) {
+      await deleteImage(category.image.toString());
     }
 
     await Category.findByIdAndDelete(id);
