@@ -1,12 +1,12 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface ICategory extends Document {
-    name: String;
+    name: string;
     description?: string;
-    slug: String;
-    image: String;
+    slug: string;
+    image?: string;  // Optional single image
     isActive: boolean;
-    productCount: number; // for admin dashboard
+    productCount: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -14,7 +14,7 @@ export interface ICategory extends Document {
 const CategorySchema: Schema = new Schema({
     name: {
         type: String,
-        required: [ true, 'Category name is required'],
+        required: [true, 'Category name is required'],
         trim: true,
         unique: true,
         maxlength: [50, 'Category name cannot exceed 50 characters']
@@ -26,55 +26,56 @@ const CategorySchema: Schema = new Schema({
         maxlength: [200, 'Description cannot exceed 200 characters']
     },
 
-   slug: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true
-  },
+    slug: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true
+    },
 
-  isActive: {
-    type: Boolean,
-    default: true
-  },
+    isActive: {
+        type: Boolean,
+        default: true
+    },
 
-  image: {
-  type: [String], //
-  },
+    image: {
+        type: String,  // Single string, not array
+        required: false
+    },
 
-  productCount: {
-    type: Number,
-    default: 0,
-    min: 0
-  }
+    productCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    }
 
 }, {
     timestamps: true,
-    toJSON: { virtuals: true},
-    toObject: { virtuals: true}
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
-CategorySchema.index({ isActive: 1})
+CategorySchema.index({ isActive: 1 });
 
 CategorySchema.pre<ICategory>('save', function(next) {
-    if (this.isModified('name')) {
+    if (this.isModified('name') || this.isNew) {
         this.slug = this.name
-          .toLowerCase()
-          .replace(/[^\w\s-]/g, '')
-           .replace(/\s+/g, '-')
-           .trim()
+            .toLowerCase()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .trim();
     }
-    next()
-})
+    next();
+});
 
 CategorySchema.methods.updateProductCount = async function() {
-  const Product = mongoose.model('Product');
-  this.productCount = await Product.countDocuments({ 
-    category: this._id, 
-    status: { $ne: 'inactive' } 
-  });
-  return this.save();
+    const Product = mongoose.model('Product');
+    this.productCount = await Product.countDocuments({ 
+        category: this._id, 
+        status: { $ne: 'inactive' } 
+    });
+    return this.save();
 };
 
 export const Category = mongoose.model<ICategory>('Category', CategorySchema);

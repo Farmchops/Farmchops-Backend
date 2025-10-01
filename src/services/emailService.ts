@@ -14,12 +14,15 @@ const createTransporter = () => {
     },
     tls: {
       // Don't fail on invalid certs (helpful for testing)
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1', // Try older version
+      maxVersion: 'TLSv1.2',
+      ciphers: 'DEFAULT:!DH' // Try different cipher suite
     },
     // Add connection timeout
-    connectionTimeout: 60000, // 60 seconds
-    greetingTimeout: 30000,   // 30 seconds
-    socketTimeout: 60000      // 60 seconds
+    connectionTimeout: 60000, 
+    greetingTimeout: 30000,  
+    socketTimeout: 60000,   
   });
 };
 

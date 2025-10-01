@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+dotenv.config();
 import DatabaseConnection from './config/database';
 //import RedisConnection from './config/redis';
 

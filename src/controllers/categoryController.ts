@@ -4,21 +4,15 @@ import { Category, ICategory } from '../models/Category';
 import { Product } from '../models/Product';
 import { validationResult } from 'express-validator';
 import { deleteImage } from '../utils/imageHelper';
-//import { IUser } from '../models/User'
+import { IUser } from '../models/User'
 //import { toString } from 'express-validator/lib/utils';
 
 //GET /api/categories
 export const getCategories = async (req: Request, res: Response): Promise<void> => {
     try {
         const { includeInactive, search } = req.query;
-        if (!req.user) {
-            res.status(401).json({
-                success: false,
-                message: 'Authentication required'
-            });
-            return;
-        }
-        const isAdmin = req.user.role === 'admin'
+        
+        const isAdmin = req.user?.role === 'admin'
 
         // Only admins can see inactive categories
         const filter: any = isAdmin && includeInactive === 'true'
@@ -126,9 +120,16 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
               return
             }
 
+             const slug = name
+                 .toLowerCase()
+                 .replace(/[^\w\s-]/g, '')
+                 .replace(/\s+/g, '-')
+                 .trim();
+
             const category = new Category({
                 name: name.trim(),
                 description: description?.trim(),
+                slug,
                 image,
                 isActive
             });
