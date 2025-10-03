@@ -30,8 +30,9 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/categories', category)
 app.use('/api/auth', auth)
-app.use('/api/product', product)
+app.use('/api/products', product)
 app.use('/api/cart', cart)
+
 
 // Health check route
 app.get('/health', async (req, res) => {

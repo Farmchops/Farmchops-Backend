@@ -221,6 +221,9 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
 
 // POST /api/products - Create product (admin only)
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
+   console.log('✅ CreateProduct function hit!');
+  console.log('Files:', req.files);
+  console.log('Body:', req.body);
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -235,7 +238,15 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     const uploadedImages = req.files as Express.Multer.File[];
     const images = uploadedImages?.map(file => file.path) || [];
 
-    const {
+    if (images.length === 0){
+      res.status(400).json({
+      success: false,
+      message: 'At least one product image is required'
+      })
+      return;
+    }
+
+    let {
       name,
       description,
       category,
@@ -245,6 +256,15 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       status = 'draft'
     } = req.body;
 
+     if (typeof pricing === 'string') {
+      pricing = JSON.parse(pricing);
+    }
+    if (typeof inventory === 'string') {
+      inventory = JSON.parse(inventory);
+    }
+    if (typeof tags === 'string') {
+      tags = JSON.parse(tags);
+    }
       // Validate bulk price < retail price
     if (pricing?.bulk && pricing?.retail) {
       if (pricing.bulk.price >= pricing.retail.price) {
@@ -262,6 +282,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     //Image validation
     const imageValidation = validateProductImages(images);
     if (!imageValidation.valid) {
+
+      if (images.length > 0) await deleteMultipleImages(images);
       res.status(400).json({
         success: false,
         message: imageValidation.message
@@ -272,6 +294,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
      // BULK PRICE VALIDATION HERE
     if (pricing?.bulk && pricing?.retail) {
       if (pricing.bulk.price >= pricing.retail.price) {
+
+        if (images.length > 0) await deleteMultipleImages
         res.status(400).json({
           success: false,
           message: 'Bulk price must be less than retail price'
@@ -283,6 +307,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     // Verify category exists
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) {
+
+      if (images.length > 0) await deleteMultipleImages
       res.status(400).json({
         success: false,
         message: 'Invalid category ID'
@@ -296,6 +322,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     });
 
     if (existingProduct) {
+
+      if (images.length > 0) await deleteMultipleImages(images);
       res.status(409).json({
         success: false,
         message: 'Product with this name already exists'
@@ -332,7 +360,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
 
-    const uploadedImages = req.file ? [req.file as Express.Multer.File] : [];
+    const uploadedImages = req.files as Express.Multer.File[];
     if (uploadedImages.length > 0) {
       await deleteMultipleImages(uploadedImages.map(f => f.path))
     }

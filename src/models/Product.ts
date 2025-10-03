@@ -216,9 +216,9 @@ ProductSchema.virtual('bulkSavings').get(function(this: IProduct) {
 ProductSchema.pre<IProduct>('validate', function(next) {
   if (this.pricing.bulk.price >= this.pricing.retail.price) {
     next(new Error('Bulk price must be less than retail price'));
-  } else {
-    next();
+    return;  // Stop execution
   }
+  
   // Auto-update status based on stock
   if (this.inventory.availableStock <= 0) {
     this.set('status', 'out_of_stock');
@@ -226,9 +226,8 @@ ProductSchema.pre<IProduct>('validate', function(next) {
     this.set('status', 'active');
   }
   
-  next();
+  next();  // Only ONE next() call
 });
-
 // Method: Update stock when order is placed (for wallet/pay-later orders)
 ProductSchema.methods.updateStock = function(quantityOrdered: number, operation: 'decrease' | 'increase') {
   if (operation === 'decrease') {
@@ -250,5 +249,28 @@ ProductSchema.methods.canFulfillOrder = function(quantity: number, orderType: 'r
   
   return quantity >= minQty && this.inventory.availableStock >= quantity && this.status === 'active';
 };
+
+
+// ADD THIS - the save hook that generates slug
+ProductSchema.pre<IProduct>('validate', function(next) {
+  // Generate slug BEFORE validation
+  if (this.isNew || this.isModified('name')) {
+    this.slug = this.name.toLowerCase().replace(/\s+/g, '-');
+  }
+
+  if (this.pricing.bulk.price >= this.pricing.retail.price) {
+    next(new Error('Bulk price must be less than retail price'));
+    return;
+  }
+  
+  // Auto-update status based on stock
+  if (this.inventory.availableStock <= 0) {
+    this.set('status', 'out_of_stock');
+  } else if (this.get('status') === 'out_of_stock' && this.inventory.availableStock > 0) {
+    this.set('status', 'active');
+  }
+  
+  next();
+});
 
 export const Product = mongoose.model<IProduct>('Product', ProductSchema);
