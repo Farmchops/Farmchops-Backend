@@ -103,12 +103,12 @@ const ProductSchema: Schema = new Schema({
     bulk: {
       price: {
         type: Number,
-        required: [true, 'Bulk price is required'],
+        required: [false, 'Bulk price is required'],
         min: [1, 'Price must be at least 1 kobo']
       },
       unit: {
         type: String,
-        required: [true, 'Bulk unit is required'],
+        required: [false, 'Bulk unit is required'],
         trim: true,
         maxlength: [20, 'Unit description too long']
       },
@@ -253,7 +253,6 @@ ProductSchema.methods.canFulfillOrder = function(quantity: number, orderType: 'r
 
 // ADD THIS - the save hook that generates slug
 ProductSchema.pre<IProduct>('validate', function(next) {
-  // Generate slug BEFORE validation
   if (this.isNew || this.isModified('name')) {
     this.slug = this.name.toLowerCase().replace(/\s+/g, '-');
   }
