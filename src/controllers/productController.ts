@@ -278,20 +278,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       });
       return;
     }
- 
-     // BULK PRICE VALIDATION HERE
-    if (pricing?.bulk && pricing?.retail) {
-      if (pricing.bulk.price >= pricing.retail.price) {
-
-        if (images.length > 0) await deleteMultipleImages
-        res.status(400).json({
-          success: false,
-          message: 'Bulk price must be less than retail price'
-        });
-        return;
-      }
-    }
-
+    
     // Verify category exists
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) {
