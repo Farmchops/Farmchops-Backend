@@ -265,20 +265,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     if (typeof tags === 'string') {
       tags = JSON.parse(tags);
     }
-      // Validate bulk price < retail price
-    if (pricing?.bulk && pricing?.retail) {
-      if (pricing.bulk.price >= pricing.retail.price) {
-        // Delete uploaded images
-        if (images.length > 0) await deleteMultipleImages(images);
-        
-        res.status(400).json({
-          success: false,
-          message: 'Bulk price must be less than retail price'
-        });
-        return;
-      }
-    }
-
+      
+    
     //Image validation
     const imageValidation = validateProductImages(images);
     if (!imageValidation.valid) {
@@ -406,19 +394,6 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
           message: imageValidation.message
         });
         return;
-      }
-    }
-
-    // BULK PRICE VALIDATION HERE
-    if (pricing) {
-      if (pricing.bulk && pricing.retail) {
-        if (pricing.bulk.price >= pricing.retail.price) {
-          res.status(400).json({
-            success: false,
-            message: 'Bulk price must be less than retail price'
-          });
-          return;
-        }
       }
     }
 

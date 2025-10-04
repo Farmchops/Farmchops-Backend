@@ -1,53 +1,46 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-type ProductStatus = 'active' | 'inactive' | 'out_of_stock';
+type ProductStatus = 'active' | 'inactive' | 'out_of_stock' | 'draft';
 
 export interface IProduct extends Document {
   status: ProductStatus;
   name: string;
   description: string;
   images: string[];
-  category: mongoose.Types.ObjectId; // Reference to Category schema
+  category: mongoose.Types.ObjectId;
   
-  // Dual Pricing Structure - Core Feature
   pricing: {
     retail: {
       price: number; 
-      unit: string; // e.g., "per kg", "per piece"
+      unit: string;
       minQuantity: number;
     };
-    bulk: {
-      price: number; 
-      unit: string; // e.g., "per 25kg bag", "per crate"
+    bulkTiers?: Array<{
+      name: string;
+      price: number;
+      unit: string;
       minQuantity: number;
-    };
+    }>;
   };
   
-  // Simple Inventory Management
   inventory: {
     availableStock: number;
     lowStockThreshold: number;
-    unit: string; // base unit (kg, pieces, bags, etc.)
+    unit: string;
   };
   
-
-
-  // For Search & SEO
   tags: string[];
   slug: string;
   
-  // Basic Analytics for Admin Dashboard
   stats: {
-    viewCount: { type: Number; default: 0 };
-    orderCount: { type: Number; default: 0 };
-    totalSold: { type: Number; default: 0 }; // total quantity sold
+    viewCount: number;
+    orderCount: number;
+    totalSold: number;
   };
   
-  // Timestamps
   createdAt: Date;
   updatedAt: Date;
 }
-
 
 const ProductSchema: Schema = new Schema({
   name: {
@@ -61,26 +54,26 @@ const ProductSchema: Schema = new Schema({
     type: String,
     required: [true, 'Product description is required'],
     trim: true,
-    maxlength: [500, 'Description cannot exceed 500 characters'] // Shorter for MVP
+    maxlength: [500, 'Description cannot exceed 500 characters']
   },
   
   images: {
-  type: [String], // Change from [{type: String}] to just [String]
-  default: [],
-  validate: {
-    validator: function(arr: string[]) {
-      return arr.length <= 5; // Remove the > 0 check (makes it optional)
-    },
-    message: 'Product can have maximum 5 images'
-  }
-},
+    type: [String],
+    default: [],
+    validate: {
+      validator: function(arr: string[]) {
+        return arr.length <= 5;
+      },
+      message: 'Product can have maximum 5 images'
+    }
+  },
+  
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',
     required: [true, 'Product category is required']
   },
   
-  // Dual Pricing - Core MVP Feature
   pricing: {
     retail: {
       price: {
@@ -100,27 +93,33 @@ const ProductSchema: Schema = new Schema({
         min: [1, 'Minimum quantity must be at least 1']
       }
     },
-    bulk: {
+    bulkTiers: [{
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: [50, 'Tier name too long']
+      },
       price: {
         type: Number,
-        required: [false, 'Bulk price is required'],
+        required: true,
         min: [1, 'Price must be at least 1 kobo']
       },
       unit: {
         type: String,
-        required: [false, 'Bulk unit is required'],
+        required: true,
         trim: true,
         maxlength: [20, 'Unit description too long']
       },
       minQuantity: {
         type: Number,
-        required: [true, 'Minimum bulk quantity is required'],
+        required: true,
         min: [1, 'Minimum quantity must be at least 1']
       }
-    }
+    }],
+    default: []
   },
   
-  // Simplified Inventory
   inventory: {
     availableStock: {
       type: Number,
@@ -139,8 +138,6 @@ const ProductSchema: Schema = new Schema({
       trim: true
     }
   },
-  
-
   
   status: {
     type: String,
@@ -163,7 +160,6 @@ const ProductSchema: Schema = new Schema({
     trim: true
   },
   
-  // Simple Analytics for Admin Dashboard
   stats: {
     viewCount: {
       type: Number,
@@ -181,42 +177,63 @@ const ProductSchema: Schema = new Schema({
       min: 0
     }
   }
-  
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-// Essential Indexes for MVP Performance
+// Indexes
 ProductSchema.index({ category: 1, status: 1 });
-ProductSchema.index({ name: 'text', description: 'text' }); // Search functionality
-ProductSchema.index({ 'stats.orderCount': -1 }); // Popular products
+ProductSchema.index({ name: 'text', description: 'text' });
+ProductSchema.index({ 'stats.orderCount': -1 });
 
-// Virtual: Check if low stock (for admin alerts)
+// Virtual: Check if low stock
 ProductSchema.virtual('isLowStock').get(function(this: IProduct) {
   return this.inventory.availableStock <= this.inventory.lowStockThreshold;
 });
 
-// Virtual: Calculate bulk savings for frontend display
+// Virtual: Calculate bulk savings (best tier)
 ProductSchema.virtual('bulkSavings').get(function(this: IProduct) {
+  if (!this.pricing.bulkTiers || this.pricing.bulkTiers.length === 0) {
+    return null;
+  }
+
   const retailPerUnit = this.pricing.retail.price / this.pricing.retail.minQuantity;
-  const bulkPerUnit = this.pricing.bulk.price / this.pricing.bulk.minQuantity;
   
+  // Find the cheapest bulk tier
+  const cheapestTier = this.pricing.bulkTiers.reduce((min, tier) => {
+    const tierPerUnit = tier.price / tier.minQuantity;
+    const minPerUnit = min.price / min.minQuantity;
+    return tierPerUnit < minPerUnit ? tier : min;
+  });
+  
+  const bulkPerUnit = cheapestTier.price / cheapestTier.minQuantity;
   const savings = retailPerUnit - bulkPerUnit;
   const savingsPercent = savings > 0 ? Math.round((savings / retailPerUnit) * 100) : 0;
   
   return {
     amount: Math.max(0, savings),
-    percentage: savingsPercent
+    percentage: savingsPercent,
+    tierName: cheapestTier.name
   };
 });
 
-// Pre-save: Auto-generate slug and update stock status
+// Validate hook
 ProductSchema.pre<IProduct>('validate', function(next) {
-  if (this.pricing.bulk.price >= this.pricing.retail.price) {
-    next(new Error('Bulk price must be less than retail price'));
-    return;  // Stop execution
+  // Generate slug
+  if (this.isNew || this.isModified('name')) {
+    this.slug = this.name.toLowerCase().replace(/\s+/g, '-');
+  }
+
+  // Validate bulk tiers if they exist
+  if (this.pricing.bulkTiers && this.pricing.bulkTiers.length > 0) {
+    for (const tier of this.pricing.bulkTiers) {
+      if (tier.price >= this.pricing.retail.price) {
+        next(new Error(`Bulk tier "${tier.name}" price must be less than retail price`));
+        return;
+      }
+    }
   }
   
   // Auto-update status based on stock
@@ -226,9 +243,10 @@ ProductSchema.pre<IProduct>('validate', function(next) {
     this.set('status', 'active');
   }
   
-  next();  // Only ONE next() call
+  next();
 });
-// Method: Update stock when order is placed (for wallet/pay-later orders)
+
+// Method: Update stock when order is placed
 ProductSchema.methods.updateStock = function(quantityOrdered: number, operation: 'decrease' | 'increase') {
   if (operation === 'decrease') {
     this.inventory.availableStock = Math.max(0, this.inventory.availableStock - quantityOrdered);
@@ -245,31 +263,9 @@ ProductSchema.methods.updateStock = function(quantityOrdered: number, operation:
 
 // Method: Check if quantity is available for ordering
 ProductSchema.methods.canFulfillOrder = function(quantity: number, orderType: 'retail' | 'bulk'): boolean {
-  const minQty = orderType === 'retail' ? this.pricing.retail.minQuantity : this.pricing.bulk.minQuantity;
+  const minQty = orderType === 'retail' ? this.pricing.retail.minQuantity : this.pricing.bulkTiers?.[0]?.minQuantity || 0;
   
   return quantity >= minQty && this.inventory.availableStock >= quantity && this.status === 'active';
 };
-
-
-// ADD THIS - the save hook that generates slug
-ProductSchema.pre<IProduct>('validate', function(next) {
-  if (this.isNew || this.isModified('name')) {
-    this.slug = this.name.toLowerCase().replace(/\s+/g, '-');
-  }
-
-  if (this.pricing.bulk.price >= this.pricing.retail.price) {
-    next(new Error('Bulk price must be less than retail price'));
-    return;
-  }
-  
-  // Auto-update status based on stock
-  if (this.inventory.availableStock <= 0) {
-    this.set('status', 'out_of_stock');
-  } else if (this.get('status') === 'out_of_stock' && this.inventory.availableStock > 0) {
-    this.set('status', 'active');
-  }
-  
-  next();
-});
 
 export const Product = mongoose.model<IProduct>('Product', ProductSchema);
