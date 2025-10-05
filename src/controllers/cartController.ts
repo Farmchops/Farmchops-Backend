@@ -44,19 +44,51 @@ const saveCart = (req: Request, cart: Cart): void => {
   req.session.cart = cart;
 };
 
-const getOptimalPriceType = (product: IProduct, quantity: number): 'retail' | 'bulk' => {
-  if (quantity >= product.pricing.bulk.minQuantity) {
-    return 'bulk';
+// Find the best bulk tier for a quantity (cheapest per-unit price that quantity qualifies for)
+const getOptimalBulkTier = (product: IProduct, quantity: number) => {
+  if (!product.pricing.bulkTiers || product.pricing.bulkTiers.length === 0) {
+    return null;
   }
-  return 'retail';
+
+  // Filter tiers the quantity qualifies for
+  const qualifyingTiers = product.pricing.bulkTiers.filter(
+    tier => quantity >= tier.minQuantity
+  );
+
+  if (qualifyingTiers.length === 0) {
+    return null;
+  }
+
+  // Return the tier with best per-unit price
+  return qualifyingTiers.reduce((best, tier) => {
+    const tierPerUnit = tier.price / tier.minQuantity;
+    const bestPerUnit = best.price / best.minQuantity;
+    return tierPerUnit < bestPerUnit ? tier : best;
+  });
 };
 
-const getPriceForType = (product: IProduct, type: 'retail' | 'bulk'): number => {
-  return type === 'retail' ? product.pricing.retail.price : product.pricing.bulk.price;
+// Get the price and unit for a given quantity
+const getPriceForQuantity = (product: IProduct, quantity: number): { price: number; unit: string; tierName?: string } => {
+  const bulkTier = getOptimalBulkTier(product, quantity);
+  
+  if (bulkTier) {
+    return {
+      price: bulkTier.price,
+      unit: bulkTier.unit,
+      tierName: bulkTier.name
+    };
+  }
+
+  return {
+    price: product.pricing.retail.price,
+    unit: product.pricing.retail.unit
+  };
 };
 
-const getUnitForType = (product: IProduct, type: 'retail' | 'bulk'): string => {
-  return type === 'retail' ? product.pricing.retail.unit : product.pricing.bulk.unit;
+// Calculate total price for quantity
+const calculateTotalPrice = (product: IProduct, quantity: number): number => {
+  const { price } = getPriceForQuantity(product, quantity);
+  return price * quantity;
 };
 
 const recalculateCart = (cart: Cart): Cart => {
@@ -66,7 +98,36 @@ const recalculateCart = (cart: Cart): Cart => {
   return cart;
 };
 
-// ===== CONTROLLERS =====
+
+
+// Helper to determine optimal price type
+const getOptimalPriceType = (product: IProduct, quantity: number): 'retail' | 'bulk' => {
+  const bulkTier = getOptimalBulkTier(product, quantity);
+  return bulkTier ? 'bulk' : 'retail';
+};
+
+// Helper to get price for a given price type
+const getPriceForType = (product: IProduct, priceType: 'retail' | 'bulk'): number => {
+  if (priceType === 'bulk') {
+    // Find the best bulk tier for the minimum quantity in cart
+    const bulkTier = getOptimalBulkTier(product, 1);
+    if (bulkTier) {
+      return bulkTier.price;
+    }
+  }
+  return product.pricing.retail.price;
+};
+
+// Helper to get unit for a given price type
+const getUnitForType = (product: IProduct, priceType: 'retail' | 'bulk'): string => {
+  if (priceType === 'bulk') {
+    const bulkTier = getOptimalBulkTier(product, 1);
+    if (bulkTier) {
+      return bulkTier.unit;
+    }
+  }
+  return product.pricing.retail.unit;
+};
 
 /**
  * Add item to cart
