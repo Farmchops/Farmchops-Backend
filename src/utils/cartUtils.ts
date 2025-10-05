@@ -1,22 +1,65 @@
-import { Product } from '../models/Product';
+import { Product, IProduct } from '../models/Product';
 import { Cart, CartItem, CartValidationResult } from '../types/cart';
 
 export class CartUtils {
   /**
-   * Calculate item total price based on quantity and price type
+   * Find the optimal bulk tier for a given quantity
    */
-  static calculateItemPrice(quantity: number, retailPrice: number, bulkPrice: number, minBulkQuantity: number, priceType: 'retail' | 'bulk'): number {
-    if (priceType === 'bulk' && quantity >= minBulkQuantity) {
-      return quantity * bulkPrice;
+  static getOptimalBulkTier(product: IProduct, quantity: number) {
+    if (!product.pricing.bulkTiers || product.pricing.bulkTiers.length === 0) {
+      return null;
     }
-    return quantity * retailPrice;
+
+    // Filter tiers the quantity qualifies for
+    const qualifyingTiers = product.pricing.bulkTiers.filter(
+      tier => quantity >= tier.minQuantity
+    );
+
+    if (qualifyingTiers.length === 0) {
+      return null;
+    }
+
+    // Return the tier with best per-unit price
+    return qualifyingTiers.reduce((best, tier) => {
+      const tierPerUnit = tier.price / tier.minQuantity;
+      const bestPerUnit = best.price / best.minQuantity;
+      return tierPerUnit < bestPerUnit ? tier : best;
+    });
   }
 
   /**
-   * Determine optimal price type for given quantity
+   * Get price info for a given quantity
    */
-  static getOptimalPriceType(quantity: number, minBulkQuantity: number): 'retail' | 'bulk' {
-    return quantity >= minBulkQuantity ? 'bulk' : 'retail';
+  static getPriceForQuantity(product: IProduct, quantity: number): { 
+    price: number; 
+    unit: string; 
+    priceType: 'retail' | 'bulk';
+    tierName?: string;
+  } {
+    const bulkTier = this.getOptimalBulkTier(product, quantity);
+    
+    if (bulkTier) {
+      return {
+        price: bulkTier.price,
+        unit: bulkTier.unit,
+        priceType: 'bulk',
+        tierName: bulkTier.name
+      };
+    }
+
+    return {
+      price: product.pricing.retail.price,
+      unit: product.pricing.retail.unit,
+      priceType: 'retail'
+    };
+  }
+
+  /**
+   * Calculate item total price
+   */
+  static calculateItemPrice(product: IProduct, quantity: number): number {
+    const { price } = this.getPriceForQuantity(product, quantity);
+    return price * quantity;
   }
 
   /**
@@ -54,10 +97,10 @@ export class CartUtils {
         }
 
         // Check stock availability
-        if (item.quantity > product.inventory.availableStock ) {
+        if (item.quantity > product.inventory.availableStock) {
           if (product.inventory.availableStock > 0) {
             warnings.push(`"${product.name}" quantity reduced from ${item.quantity} to ${product.inventory.availableStock} (limited stock)`);
-            item.quantity = product.inventory.availableStock
+            item.quantity = product.inventory.availableStock;
             hasChanges = true;
           } else {
             errors.push(`"${product.name}" is out of stock`);
@@ -66,34 +109,31 @@ export class CartUtils {
           }
         }
 
-        // Check price changes
-        const currentRetailPrice = product.pricing.retail.price;
-        const currentBulkPrice = product.pricing.bulk.price;
-        const currentMinBulkQuantity = product.pricing.bulk.minQuantity;
+        // Get optimal pricing for current quantity
+        const priceInfo = this.getPriceForQuantity(product, item.quantity);
+        const newUnitPrice = priceInfo.price;
+        const newPriceType = priceInfo.priceType;
+        const newTotalPrice = this.calculateItemPrice(product, item.quantity);
 
-        // Recalculate optimal price type
-        const optimalPriceType = this.getOptimalPriceType(item.quantity, currentMinBulkQuantity);
-        
-        if (item.priceType !== optimalPriceType) {
-          item.priceType = optimalPriceType;
+        // Check if price type changed
+        if (item.priceType !== newPriceType) {
+          if (newPriceType === 'bulk' && priceInfo.tierName) {
+            warnings.push(`"${product.name}" now qualifies for bulk pricing: ${priceInfo.tierName}`);
+          }
           hasChanges = true;
         }
 
-        // Recalculate prices
-        const newUnitPrice = item.priceType === 'bulk' ? currentBulkPrice : currentRetailPrice;
-        const newTotalPrice = this.calculateItemPrice(
-          item.quantity, 
-          currentRetailPrice, 
-          currentBulkPrice, 
-          currentMinBulkQuantity, 
-          item.priceType
-        );
-
+        // Check if price changed
         if (item.unitPrice !== newUnitPrice) {
           const oldPrice = item.unitPrice;
           warnings.push(`Price updated for "${product.name}": ₦${oldPrice.toLocaleString()} → ₦${newUnitPrice.toLocaleString()}`);
           hasChanges = true;
         }
+
+        // Get min bulk quantity (lowest tier if bulk tiers exist)
+        const minBulkQuantity = product.pricing.bulkTiers && product.pricing.bulkTiers.length > 0
+          ? Math.min(...product.pricing.bulkTiers.map(tier => tier.minQuantity))
+          : undefined;
 
         // Update item with current data
         const updatedItem: CartItem = {
@@ -102,8 +142,9 @@ export class CartUtils {
           image: product.images[0] || '',
           unitPrice: newUnitPrice,
           totalPrice: newTotalPrice,
+          priceType: newPriceType,
           stock: product.inventory.availableStock,
-          minBulkQuantity: currentMinBulkQuantity
+          minBulkQuantity: minBulkQuantity
         };
 
         updatedItems.push(updatedItem);
@@ -143,4 +184,3 @@ export class CartUtils {
     };
   }
 }
-
