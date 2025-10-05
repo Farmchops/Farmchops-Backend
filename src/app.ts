@@ -36,7 +36,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.options('*', cors())
 
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
