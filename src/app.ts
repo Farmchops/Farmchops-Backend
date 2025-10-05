@@ -20,8 +20,7 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-// Middleware
-app.use(helmet());
+
 app.use(cors({
   origin: [ 'http://localhost:5173',
     'http://localhost:3000',
@@ -34,6 +33,10 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }  // Add this!
 }));
 
 
