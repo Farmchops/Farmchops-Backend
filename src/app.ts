@@ -27,7 +27,10 @@ app.use(cors({
     'http://localhost:3000',
     'https://farmchops.com',
     'https://www.farmchops.com',
-    'https://api.farmchops.com'], 
+    'https://api.farmchops.com',
+    'https://staging.farmchops.com',  // ADD THIS
+    'http://staging.farmchops.com'
+  ], 
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
