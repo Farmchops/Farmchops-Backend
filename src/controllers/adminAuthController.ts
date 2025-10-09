@@ -1,7 +1,7 @@
 // src/controllers/admin/adminAuthController.ts
 
 import { Request, Response } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import emailService from '../services/emailService';
