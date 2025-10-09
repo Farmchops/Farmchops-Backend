@@ -135,6 +135,105 @@ The Farmchops Team
   };
 };
 
+const createAdminInviteTemplate = (otp: string, adminRole: string, signupLink: string) => {
+  const roleName = adminRole.replace(/_/g, ' ').toUpperCase();
+  
+  return {
+    subject: "Admin Invitation - Farmchops",
+    text: `
+Admin Invitation
+
+You've been invited to join the Farmchops admin team!
+
+Your assigned role: ${roleName}
+
+Your verification code is: ${otp}
+
+Signup link: ${signupLink}
+
+This code will expire in 15 minutes.
+
+What to do next:
+1. Click the signup link above
+2. Enter your email, verification code, Full-Name and Password 
+3. Create a strong password
+4. Complete your profile information
+
+If you didn't expect this invitation, please ignore this email.
+
+Welcome to the team!
+
+Best regards,
+The Farmchops Team
+    `,
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 30px 20px; }
+        .code { background-color: #f8f9fa; border: 2px solid #28a745; padding: 15px; font-size: 24px; font-weight: bold; text-align: center; margin: 20px 0; letter-spacing: 5px; }
+        .button { display: inline-block; padding: 15px 30px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+        .role-badge { display: inline-block; padding: 5px 15px; background-color: #007bff; color: white; border-radius: 20px; font-size: 14px; margin: 10px 0; }
+        .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 5px; }
+        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Admin Invitation</h1>
+        </div>
+        <div class="content">
+            <p>Hello,</p>
+            
+            <p>You've been invited to join the Farmchops admin team!</p>
+            
+            <p><strong>Your assigned role:</strong></p>
+            <div class="role-badge">${roleName}</div>
+            
+            <p><strong>Your verification code:</strong></p>
+            <div class="code">${otp}</div>
+            
+            <p style="text-align: center;">
+                <a href="${signupLink}" class="button">Complete Signup</a>
+            </p>
+            
+            <div class="warning">
+                <strong>⚠️ Important:</strong>
+                <ul>
+                    <li>This code expires in <strong>15 minutes</strong></li>
+                    <li>You'll need to create a password during signup</li>
+                    <li>Keep your credentials secure</li>
+                </ul>
+            </div>
+            
+            <p><strong>What to do next:</strong></p>
+            <ol>
+                <li>Click the button above to go to the admin signup page</li>
+                <li>Enter your email and the verification code</li>
+                <li>Create a strong password</li>
+                <li>Complete your profile information</li>
+            </ol>
+            
+            <p>If you didn't expect this invitation, please ignore this email or contact the system administrator.</p>
+            
+            <p>Welcome to the team! 🚀</p>
+            
+            <p>Best regards,<br>The Farmchops Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} Farmchops. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+    `,
+  };
+};
+
 // Email service class
 class EmailService {
   private transporter: any;
@@ -154,13 +253,6 @@ class EmailService {
   // Test email connection with better error handling
   async testConnection(): Promise<boolean> {
     try {
-      // console.log("Testing email connection...");
-      // console.log("Host:", process.env.EMAIL_HOST || "mail.privateemail.com");
-      // console.log("Port:", process.env.EMAIL_PORT || "587");
-      // console.log("User:", process.env.EMAIL_USER);
-      // console.log("Pass:", process.env.EMAIL_PASS ? "***SET***" : "MISSING");
-      // console.log("Secure:", process.env.EMAIL_SECURE);
-      
       await this.getTransporter().verify();
       console.log("Email service connected successfully");
       return true;
@@ -168,16 +260,6 @@ class EmailService {
       console.error("Email service connection failed:", error.message);
       console.error("Error code:", error.code);
       console.error("Error details:", error);
-      
-      // Suggest fixes based on error type
-      if (error.code === 'ESOCKET' || error.code === 'ECONNRESET') {
-        // console.log("💡 Try these fixes:");
-        // console.log("1. Check if EMAIL_HOST=mail.privateemail.com (not smtp)");
-        // console.log("2. Try port 465 with SSL instead of 587");
-        // console.log("3. Verify your email credentials are correct");
-        // console.log("4. Check if your hosting provider blocks SMTP");
-      }
-      
       return false;
     }
   }
@@ -220,6 +302,33 @@ class EmailService {
       return true;
     } catch (error) {
       console.error("Error sending password reset email:", error);
+      return false;
+    }
+  }
+
+  // Send admin invite email
+  async sendAdminInviteEmail(email: string, otp: string, adminRole: string): Promise<boolean> {
+    try {
+      // Get the admin signup URL from environment or use default
+      const adminSignupUrl = process.env.ADMIN_SIGNUP_URL || 'https://staging.farmchops.com/admin/signup';
+      
+      // Create signup link with email pre-filled
+      const signupLink = `${adminSignupUrl}?email=${encodeURIComponent(email)}`;
+      
+      const template = createAdminInviteTemplate(otp, adminRole, signupLink);
+      
+      const info = await this.getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || `"Farmchops Admin" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: template.subject,
+        text: template.text,
+        html: template.html,
+      });
+
+      console.log("Admin invite email sent:", info.messageId);
+      return true;
+    } catch (error) {
+      console.error("Error sending admin invite email:", error);
       return false;
     }
   }

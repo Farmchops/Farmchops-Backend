@@ -12,6 +12,9 @@ import auth from './routes/authRoutes'
 import product from './routes/productsRoutes'
 import cart from './routes/cartRoutes'
 import emailService from './services/emailService';
+import adminAuthRoutes from './routes/adminAuthRoutes';
+import adminManagementRoutes from './routes/adminManagementRoutes';
+
 
 
 // Load environment variables
@@ -50,6 +53,8 @@ app.use('/api/categories', category)
 app.use('/api/auth', auth)
 app.use('/api/products', product)
 app.use('/api/cart', cart)
+app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin/management', adminManagementRoutes);
 
 
 // Health check route
