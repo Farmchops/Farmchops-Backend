@@ -48,7 +48,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 
-
 app.use('/api/categories', category)
 app.use('/api/auth', auth)
 app.use('/api/products', product)
