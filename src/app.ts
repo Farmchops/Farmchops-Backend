@@ -3,9 +3,31 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import session from 'express-session';
+import MongoStore from 'connect-mongo';
+const app = express();
+
 dotenv.config();
+// Load environment variables
+dotenv.config();
+
 import DatabaseConnection from './config/database';
 //import RedisConnection from './config/redis';
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || '1233edhkndlfjkneinr93u943',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    ttl: 7 * 24 * 60 * 60 // 7 days
+  }),
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  }
+}));
 
 import category from './routes/categoryRoutes'
 import auth from './routes/authRoutes'
@@ -16,11 +38,6 @@ import adminAuthRoutes from './routes/adminAuthRoutes';
 import adminManagementRoutes from './routes/adminManagementRoutes';
 
 
-
-// Load environment variables
-dotenv.config();
-
-const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
 
