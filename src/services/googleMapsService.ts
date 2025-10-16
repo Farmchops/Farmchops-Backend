@@ -51,52 +51,56 @@ export async function getDistanceBetween(origins: Coordinates | string, destinat
     throw new Error(`Distance Matrix element error: ${element?.status || 'no element'}`);
   }
 
-  return {
+  const result = {
     distanceMeters: element.distance.value,
     durationSeconds: element.duration.value,
     distanceText: element.distance.text,
     durationText: element.duration.text
   };
+    // Cache the result for 1 hour
+  await cacheSet(cacheKey, result, 3600);
+  return result;
 }
 
-export async function getPlaceDetails(placeId: string, sessiontoken?: string): Promise<any> {
-  const cacheKey = `gm:place:${placeId}`;
-  const cached = await cacheGet<any>(cacheKey);
-  if (cached) return cached;
 
-  const url = `${BASE_URL}/place/details/json`;
-  const params: any = {
-    place_id: placeId,
-    key: API_KEY,
-    fields: 'formatted_address,geometry,address_component'
-  };
-  if (sessiontoken) params.sessiontoken = sessiontoken;
+// export async function getPlaceDetails(placeId: string, sessiontoken?: string): Promise<any> {
+//   const cacheKey = `gm:place:${placeId}`;
+//   const cached = await cacheGet<any>(cacheKey);
+//   if (cached) return cached;
 
-  const res = await axios.get(url, { params });
-  const data = res.data;
-  if (!data || data.status !== 'OK') {
-    throw new Error(`Places Details API error: ${data?.status || 'no response'}`);
-  }
+//   const url = `${BASE_URL}/place/details/json`;
+//   const params: any = {
+//     place_id: placeId,
+//     key: API_KEY,
+//     fields: 'formatted_address,geometry,address_component'
+//   };
+//   if (sessiontoken) params.sessiontoken = sessiontoken;
 
-  await cacheSet(cacheKey, data.result, 60 * 60 * 24); // cache 24 hours
-  return data.result;
-}
+//   const res = await axios.get(url, { params });
+//   const data = res.data;
+//   if (!data || data.status !== 'OK') {
+//     throw new Error(`Places Details API error: ${data?.status || 'no response'}`);
+//   }
 
-export async function autocompletePlace(input: string, sessiontoken?: string, components?: string): Promise<any> {
-  const url = `${BASE_URL}/place/autocomplete/json`;
-  const params: any = {
-    input,
-    key: API_KEY,
-    types: 'address'
-  };
-  if (sessiontoken) params.sessiontoken = sessiontoken;
-  if (components) params.components = components; // e.g. 'country:ng'
+//   await cacheSet(cacheKey, data.result, 60 * 60 * 24); // cache 24 hours
+//   return data.result;
+// }
 
-  const res = await axios.get(url, { params });
-  const data = res.data;
-  if (!data || data.status !== 'OK') {
-    throw new Error(`Places Autocomplete API error: ${data?.status || 'no response'}`);
-  }
+// export async function autocompletePlace(input: string, sessiontoken?: string, components?: string): Promise<any> {
+//   const url = `${BASE_URL}/place/autocomplete/json`;
+//   const params: any = {
+//     input,
+//     key: API_KEY,
+//     types: 'address'
+//   };
+//   if (sessiontoken) params.sessiontoken = sessiontoken;
+//   if (components) params.components = components; // e.g. 'country:ng'
 
-  return data; // caller can pick predictions
-}
+//   const res = await axios.get(url, { params });
+//   const data = res.data;
+//   if (!data || data.status !== 'OK') {
+//     throw new Error(`Places Autocomplete API error: ${data?.status || 'no response'}`);
+//   }
+
+//   return data; // caller can pick predictions
+// }

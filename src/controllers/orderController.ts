@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getCart } from '././_cartHelpers';
 import { getDistanceBetween } from '../services/googleMapsService';
+import { CheckoutRequest, CheckoutSummaryResponse } from '../types/order.types';
 
 // Fee config (NGN)
 const BASE_FEE = 200; // base delivery fee
@@ -14,9 +15,9 @@ function calculateFee(subtotal: number, distanceKm: number): number {
   return fee;
 }
 
-export const checkoutSummary = async (req: Request, res: Response): Promise<Response> => {
+export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, CheckoutRequest>, res: Response<CheckoutSummaryResponse>): Promise<Response<CheckoutSummaryResponse>> => {
   try {
-    const { name, phone, address, origin } = req.body;
+    const { name, phone, address, origin, notes } = req.body;
     if (!name || !phone || !address) {
       return res.status(400).json({ success: false, message: 'name, phone and address are required' });
     }
@@ -46,6 +47,10 @@ export const checkoutSummary = async (req: Request, res: Response): Promise<Resp
       success: true,
       data: {
         cart,
+        customerInfo: {
+          name,
+          phone
+        },
         delivery: {
           address,
           distanceKm,
@@ -54,6 +59,7 @@ export const checkoutSummary = async (req: Request, res: Response): Promise<Resp
           durationText: distanceResult.durationText,
           fee: deliveryFee
         },
+        notes: notes || null, // Optional customer notes for special instructions
         totals
       }
     });

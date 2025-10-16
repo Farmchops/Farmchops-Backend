@@ -15,7 +15,7 @@ import emailService from './services/emailService';
 import adminAuthRoutes from './routes/adminAuthRoutes';
 import adminManagementRoutes from './routes/adminManagementRoutes';
 import ordersRoutes from './routes/ordersRoutes';
-import placesRoutes from './routes/placesRoutes';
+// import placesRoutes from './routes/placesRoutes';
 
 
 
@@ -58,7 +58,7 @@ app.use('/api/cart', cart)
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/management', adminManagementRoutes);
 app.use('/api/orders', ordersRoutes);
-app.use('/api/places', placesRoutes);
+// app.use('/api/places', placesRoutes);
 
 
 // Health check route
