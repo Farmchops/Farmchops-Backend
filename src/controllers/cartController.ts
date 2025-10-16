@@ -363,7 +363,8 @@ export const removeCartItem = async (req: Request, res: Response): Promise<Respo
     });
   }
 
-  const { productId, priceType } = req.body;
+  const { priceType } = req.body;
+  const { productId } = req.params
 
   try {
     let cart: Cart;
