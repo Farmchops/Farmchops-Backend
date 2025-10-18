@@ -1,138 +1,21 @@
-
-import { Request, Response } from 'express';
-import { validationResult, body } from 'express-validator';
-import { Product, IProduct } from '../models/Product';
-
-// ===== TYPES =====
-interface CartItem {
-  productId: string;
-  name: string;
-  image: string;
-  price: number;
-  quantity: number;
-  unit: string;
-  priceType: 'retail' | 'bulk';
-}
-
-interface Cart {
-  items: CartItem[];
-  totalItems: number;
-  totalAmount: number;
-  lastUpdated: Date;
-}
-
-// ===== HELPERS =====
-const getCart = (req: Request): Cart => {
-  if (!req.session) {
-    throw new Error('Session not available');
-  }
-  if (!req.session.cart) {
-    req.session.cart = {
-      items: [],
-      totalItems: 0,
-      totalAmount: 0,
-      lastUpdated: new Date(),
-    };
-  }
-  return req.session.cart;
-};
-
-const saveCart = (req: Request, cart: Cart): void => {
-  if (!req.session) {
-    throw new Error('Session not available');
-  }
-  req.session.cart = cart;
-};
-
-// Find the best bulk tier for a quantity (cheapest per-unit price that quantity qualifies for)
-const getOptimalBulkTier = (product: IProduct, quantity: number) => {
-  if (!product.pricing.bulkTiers || product.pricing.bulkTiers.length === 0) {
-    return null;
-  }
-
-  // Filter tiers the quantity qualifies for
-  const qualifyingTiers = product.pricing.bulkTiers.filter(
-    tier => quantity >= tier.minQuantity
-  );
-
-  if (qualifyingTiers.length === 0) {
-    return null;
-  }
-
-  // Return the tier with best per-unit price
-  return qualifyingTiers.reduce((best, tier) => {
-    const tierPerUnit = tier.price / tier.minQuantity;
-    const bestPerUnit = best.price / best.minQuantity;
-    return tierPerUnit < bestPerUnit ? tier : best;
-  });
-};
-
-// Get the price and unit for a given quantity
-const getPriceForQuantity = (product: IProduct, quantity: number): { price: number; unit: string; tierName?: string } => {
-  const bulkTier = getOptimalBulkTier(product, quantity);
-  
-  if (bulkTier) {
-    return {
-      price: bulkTier.price,
-      unit: bulkTier.unit,
-      tierName: bulkTier.name
-    };
-  }
-
-  return {
-    price: product.pricing.retail.price,
-    unit: product.pricing.retail.unit
-  };
-};
-
-// Calculate total price for quantity
-const calculateTotalPrice = (product: IProduct, quantity: number): number => {
-  const { price } = getPriceForQuantity(product, quantity);
-  return price * quantity;
-};
-
-const recalculateCart = (cart: Cart): Cart => {
-  cart.totalAmount = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  cart.totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
-  cart.lastUpdated = new Date();
-  return cart;
-};
-
-
-
-// Helper to determine optimal price type
-const getOptimalPriceType = (product: IProduct, quantity: number): 'retail' | 'bulk' => {
-  const bulkTier = getOptimalBulkTier(product, quantity);
-  return bulkTier ? 'bulk' : 'retail';
-};
-
-// Helper to get price for a given price type
-const getPriceForType = (product: IProduct, priceType: 'retail' | 'bulk'): number => {
-  if (priceType === 'bulk') {
-    // Find the best bulk tier for the minimum quantity in cart
-    const bulkTier = getOptimalBulkTier(product, 1);
-    if (bulkTier) {
-      return bulkTier.price;
-    }
-  }
-  return product.pricing.retail.price;
-};
-
-// Helper to get unit for a given price type
-const getUnitForType = (product: IProduct, priceType: 'retail' | 'bulk'): string => {
-  if (priceType === 'bulk') {
-    const bulkTier = getOptimalBulkTier(product, 1);
-    if (bulkTier) {
-      return bulkTier.unit;
-    }
-  }
-  return product.pricing.retail.unit;
-};
+import { Response } from 'express';
+import { validationResult } from 'express-validator';
+import { Product } from '../models/Product';
+import { AuthRequest } from '../middleware/auth';
+import {
+  getCart,
+  saveCart,
+  recalculateCart,
+  getOptimalPriceType,
+  getPriceForType,
+  getUnitForType,
+  clearCart as clearCartHelper
+} from '../utils/cartHelpers';
 
 /**
  * Add item to cart
  */
-export const addToCart = async (req: Request, res: Response): Promise<Response> => {
+export const addToCart = async (req: AuthRequest, res: Response): Promise<Response> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -174,18 +57,11 @@ export const addToCart = async (req: Request, res: Response): Promise<Response> 
       });
     }
 
-    let cart: Cart;
-    try {
-      cart = getCart(req);
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: 'Session not available',
-      });
-    }
+    const cart = await getCart(req);
     const priceType = getOptimalPriceType(product, quantity);
-    const price = getPriceForType(product, priceType);
-    const unit = getUnitForType(product, priceType);
+    const price = getPriceForType(product, priceType, quantity);
+    const unit = getUnitForType(product, priceType, quantity);
+
     const existingIndex = cart.items.findIndex(
       (item) => item.productId === productId && item.priceType === priceType
     );
@@ -211,7 +87,8 @@ export const addToCart = async (req: Request, res: Response): Promise<Response> 
       });
     }
 
-    saveCart(req, recalculateCart(cart));
+    recalculateCart(cart);
+    await saveCart(req, cart);
 
     return res.status(200).json({
       success: true,
@@ -227,18 +104,29 @@ export const addToCart = async (req: Request, res: Response): Promise<Response> 
   }
 };
 
-export const getCartItems = (req: Request, res: Response): Response => {
-  const cart = getCart(req);
-  return res.status(200).json({
-    success: true,
-    cart,
-  });
+/**
+ * Get cart items
+ */
+export const getCartItems = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    const cart = await getCart(req);
+    return res.status(200).json({
+      success: true,
+      cart,
+    });
+  } catch (error) {
+    console.error('Error getting cart items:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
 };
 
 /**
- * Update item quantity in cart
+ * Update cart item quantity
  */
-export const updateCartItem = async (req: Request, res: Response): Promise<Response> => {
+export const updateCartItem = async (req: AuthRequest, res: Response): Promise<Response> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -258,15 +146,7 @@ export const updateCartItem = async (req: Request, res: Response): Promise<Respo
   }
 
   try {
-    let cart: Cart;
-    try {
-      cart = getCart(req);
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: 'Session not available',
-      });
-    }
+    const cart = await getCart(req);
 
     const itemIndex = cart.items.findIndex(
       (item) => item.productId === productId && item.priceType === priceType
@@ -279,7 +159,6 @@ export const updateCartItem = async (req: Request, res: Response): Promise<Respo
       });
     }
 
-    // Fetch product to check inventory and pricing
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
@@ -303,8 +182,8 @@ export const updateCartItem = async (req: Request, res: Response): Promise<Respo
     }
 
     const newPriceType = getOptimalPriceType(product, quantity);
-    const newPrice = getPriceForType(product, newPriceType);
-    const newUnit = getUnitForType(product, newPriceType);
+    const newPrice = getPriceForType(product, newPriceType, quantity);
+    const newUnit = getUnitForType(product, newPriceType, quantity);
 
     const item = cart.items[itemIndex];
     if (!item) {
@@ -313,12 +192,14 @@ export const updateCartItem = async (req: Request, res: Response): Promise<Respo
         message: 'Item not found in cart',
       });
     }
+
     item.quantity = quantity;
     item.priceType = newPriceType;
     item.price = newPrice;
     item.unit = newUnit;
 
-    saveCart(req, recalculateCart(cart));
+    recalculateCart(cart);
+    await saveCart(req, cart);
 
     return res.status(200).json({
       success: true,
@@ -337,23 +218,27 @@ export const updateCartItem = async (req: Request, res: Response): Promise<Respo
 /**
  * Clear entire cart
  */
-export const clearCart = (req: Request, res: Response): Response => {
-  if (req.session) {
-    req.session.cart = undefined;
-  } else {
+export const clearCart = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    await clearCartHelper(req);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cart cleared',
+    });
+  } catch (error) {
+    console.error('Error clearing cart:', error);
     return res.status(500).json({
       success: false,
-      message: 'Session not available',
+      message: 'Internal server error',
     });
   }
-
-  return res.status(200).json({
-    success: true,
-    message: 'Cart cleared',
-  });
 };
 
-export const removeCartItem = async (req: Request, res: Response): Promise<Response> => {
+/**
+ * Remove specific item from cart
+ */
+export const removeCartItem = async (req: AuthRequest, res: Response): Promise<Response> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -364,18 +249,10 @@ export const removeCartItem = async (req: Request, res: Response): Promise<Respo
   }
 
   const { priceType } = req.body;
-  const { productId } = req.params
+  const { productId } = req.params;
 
   try {
-    let cart: Cart;
-    try {
-      cart = getCart(req);
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: 'Session not available',
-      });
-    }
+    const cart = await getCart(req);
 
     const itemIndex = cart.items.findIndex(
       (item) => item.productId === productId && item.priceType === priceType
@@ -389,7 +266,8 @@ export const removeCartItem = async (req: Request, res: Response): Promise<Respo
     }
 
     const removedItem = cart.items.splice(itemIndex, 1)[0];
-    saveCart(req, recalculateCart(cart));
+    recalculateCart(cart);
+    await saveCart(req, cart);
 
     return res.status(200).json({
       success: true,
@@ -405,4 +283,3 @@ export const removeCartItem = async (req: Request, res: Response): Promise<Respo
     });
   }
 };
-

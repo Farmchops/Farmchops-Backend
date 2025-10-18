@@ -7,6 +7,8 @@ const API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 if (!API_KEY) {
   // Do not throw at import-time in case environment is set later, but warn.
   console.warn('GOOGLE_MAPS_API_KEY is not set. Google Maps requests will fail until the key is provided.');
+} else {
+  console.log(`Google Maps API Key loaded: ${API_KEY.substring(0, 10)}...${API_KEY.substring(API_KEY.length - 4)}`);
 }
 
 export interface Coordinates {

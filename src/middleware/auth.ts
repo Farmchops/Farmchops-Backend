@@ -58,6 +58,43 @@ export const authenticateToken = async (
   }
 };
 
+// Optional authentication - attaches user if token is present, but doesn't require it
+export const optionalAuth = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    // No token? That's okay, continue without user
+    if (!token) {
+      next();
+      return;
+    }
+
+    // Try to verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const user = await User.findById(decoded.userId);
+
+    if (user) {
+      // Check if admin account is active
+      if (user.role === 'admin' && !user.isActive) {
+        // Invalid admin, continue as anonymous
+        next();
+        return;
+      }
+      req.user = user;
+    }
+
+    next();
+  } catch (error) {
+    // Invalid token? Continue as anonymous user
+    next();
+  }
+};
+
 // Check if user is admin (any admin role)
 export const requireAdmin = (
   req: AuthRequest,
