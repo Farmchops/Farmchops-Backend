@@ -9,6 +9,8 @@ import {
   getOptimalPriceType,
   getPriceForType,
   getUnitForType,
+  getMinQuantityForType,
+  getTierNameForType,
   clearCart as clearCartHelper
 } from '../utils/cartHelpers';
 
@@ -61,6 +63,8 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
     const priceType = getOptimalPriceType(product, quantity);
     const price = getPriceForType(product, priceType, quantity);
     const unit = getUnitForType(product, priceType, quantity);
+    const minQuantity = getMinQuantityForType(product, priceType, quantity);
+    const tierName = getTierNameForType(product, priceType, quantity);
 
     const existingIndex = cart.items.findIndex(
       (item) => item.productId === productId && item.priceType === priceType
@@ -84,6 +88,8 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
         quantity,
         unit,
         priceType,
+        minQuantity,
+        tierName,
       });
     }
 
@@ -184,6 +190,8 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<R
     const newPriceType = getOptimalPriceType(product, quantity);
     const newPrice = getPriceForType(product, newPriceType, quantity);
     const newUnit = getUnitForType(product, newPriceType, quantity);
+    const newMinQuantity = getMinQuantityForType(product, newPriceType, quantity);
+    const newTierName = getTierNameForType(product, newPriceType, quantity);
 
     const item = cart.items[itemIndex];
     if (!item) {
@@ -197,6 +205,8 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<R
     item.priceType = newPriceType;
     item.price = newPrice;
     item.unit = newUnit;
+    item.minQuantity = newMinQuantity;
+    item.tierName = newTierName;
 
     recalculateCart(cart);
     await saveCart(req, cart);

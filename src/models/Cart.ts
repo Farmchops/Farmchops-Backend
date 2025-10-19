@@ -8,6 +8,8 @@ export interface ICartItem {
   quantity: number;
   unit: string;
   priceType: 'retail' | 'bulk';
+  minQuantity: number;
+  tierName?: string;
 }
 
 export interface ICart extends Document {
@@ -51,6 +53,15 @@ const CartItemSchema = new Schema<ICartItem>({
     type: String,
     enum: ['retail', 'bulk'],
     required: true
+  },
+  minQuantity: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  tierName: {
+    type: String,
+    required: false
   }
 }, { _id: false });
 

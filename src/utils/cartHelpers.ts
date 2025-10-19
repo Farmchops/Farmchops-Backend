@@ -1,4 +1,3 @@
-import { Request } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import Cart, { ICart, ICartItem } from '../models/Cart';
 import { IProduct } from '../models/Product';
@@ -50,12 +49,13 @@ export async function getCart(req: AuthRequest): Promise<SessionCart | ICart> {
   }
 
   if (!req.session.cart) {
-    req.session.cart = {
+    const emptyCart: SessionCart = {
       items: [],
       totalItems: 0,
       totalAmount: 0,
       lastUpdated: new Date()
     };
+    req.session.cart = emptyCart;
   }
 
   return req.session.cart;
@@ -174,6 +174,32 @@ export function getUnitForType(product: IProduct, priceType: 'retail' | 'bulk', 
     }
   }
   return product.pricing.retail.unit;
+}
+
+/**
+ * Get minimum quantity for a given price type
+ */
+export function getMinQuantityForType(product: IProduct, priceType: 'retail' | 'bulk', quantity: number = 1): number {
+  if (priceType === 'bulk') {
+    const bulkTier = getOptimalBulkTier(product, quantity);
+    if (bulkTier) {
+      return bulkTier.minQuantity;
+    }
+  }
+  return product.pricing.retail.minQuantity;
+}
+
+/**
+ * Get tier name for a given price type (only for bulk)
+ */
+export function getTierNameForType(product: IProduct, priceType: 'retail' | 'bulk', quantity: number = 1): string | undefined {
+  if (priceType === 'bulk') {
+    const bulkTier = getOptimalBulkTier(product, quantity);
+    if (bulkTier) {
+      return bulkTier.name;
+    }
+  }
+  return undefined;
 }
 
 /**
