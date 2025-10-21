@@ -74,6 +74,8 @@ app.use('/api/cart', cart)
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/management', adminManagementRoutes);
 app.use('/api/orders', ordersRoutes);
+import adminOrderRoutes from './routes/adminOrderRoutes';
+app.use('/api/admin', adminOrderRoutes);
 // app.use('/api/places', placesRoutes);
 
 

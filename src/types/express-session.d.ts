@@ -1,13 +1,9 @@
+
 import 'express-session';
-import { ICartItem } from '../models/Cart';
+import type { Cart } from '../controllers/_cartHelpers';
 
 declare module 'express-session' {
   interface SessionData {
-    cart?: {
-      items: ICartItem[];
-      totalItems: number;
-      totalAmount: number;
-      lastUpdated: Date;
-    };
+    cart?: Cart;
   }
 }
