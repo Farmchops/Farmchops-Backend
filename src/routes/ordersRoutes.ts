@@ -1,9 +1,40 @@
 import { Router } from 'express';
-import { checkoutSummary } from '../controllers/orderController';
+import {
+  checkoutSummary,
+  createOrder,
+  getUserOrders,
+  getOrderById,
+  getOrderByNumber,
+  cancelOrder,
+  paystackWebhook,
+  verifyPayment
+} from '../controllers/orderController';
+import { authenticateToken, optionalAuth } from '../middleware/auth';
 
 const router = Router();
 
-// POST /api/orders/checkout - returns checkout summary with delivery fee
-router.post('/checkout', checkoutSummary);
+// Checkout summary (supports both authenticated and anonymous users)
+router.post('/checkout', optionalAuth, checkoutSummary);
+
+// Create order (requires authentication)
+router.post('/create', authenticateToken, createOrder);
+
+// Get user orders (requires authentication)
+router.get('/', authenticateToken, getUserOrders);
+
+// Get order by order number (requires authentication)
+router.get('/number/:orderNumber', authenticateToken, getOrderByNumber);
+
+// Get order by ID (requires authentication)
+router.get('/:id', authenticateToken, getOrderById);
+
+// Cancel order (requires authentication)
+router.post('/:id/cancel', authenticateToken, cancelOrder);
+
+// Paystack webhook (no auth - verified by signature)
+router.post('/paystack/webhook', paystackWebhook);
+
+// Verify payment manually (requires authentication)
+router.get('/paystack/verify/:reference', authenticateToken, verifyPayment);
 
 export default router;

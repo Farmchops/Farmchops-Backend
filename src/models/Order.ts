@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
 import { WalletTransaction } from './WalletTransaction';
 
 interface IOrderItem {
@@ -26,7 +26,7 @@ export interface IOrder extends Document {
     totalAmount: number;
 
     paymentMethod: 'wallet' | 'pay_later' | 'paystack'
-    paymentStatus: 'pending' | 'paid' | 'partially_paid' | 'failed';
+    paymentStatus: 'pending' | 'paid' | 'failed';
     orderStatus: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
 
     walletTransaction?: mongoose.Types.ObjectId;
@@ -72,6 +72,31 @@ export interface IOrder extends Document {
 
     completedAt?: Date;
     cancelledAt?: Date;
+
+    // Instance methods
+    processWalletPayment(): Promise<IOrder>;
+    cancelOrder(reason?: string): Promise<IOrder>;
+}
+
+// Model with static methods
+export interface IOrderModel extends Model<IOrder> {
+    createIndividualOrder(data: {
+        userId: mongoose.Types.ObjectId;
+        items: {
+            productId: mongoose.Types.ObjectId;
+            quantity: number;
+            priceType: 'retail' | 'bulk'
+        }[];
+        deliveryInfo: {
+            address: string;
+            city: string;
+            state: string;
+            phoneNumber: string;
+        };
+        paymentMethod: 'wallet' | 'pay_later' | 'paystack';
+        deliveryFee?: number;
+        payementReference?: string;
+    }): Promise<IOrder>;
 }
 
 const OrderItemSchema = new Schema({
@@ -110,7 +135,6 @@ const OrderItemSchema = new Schema({
 const OrderSchema: Schema = new Schema({
     orderNumber: {
         type: String,
-        required: true,
         unique: true,
     },
 
@@ -159,7 +183,7 @@ const OrderSchema: Schema = new Schema({
 
     paymentStatus: {
         type: String,
-        enum: ['pending', 'paid', 'partially_paid', 'failed'],
+        enum: ['pending', 'paid', 'failed'],
         default: 'pending'
     },
 
@@ -350,26 +374,24 @@ OrderSchema.pre<IOrder>('save', async function(next) {
             status: this.orderStatus,
             timestamp: new Date(),
             note: 'Order created'
-        }]
-
+        }];
+    } else if (this.isModified('orderStatus')) {
         // Update status history and completion dates when status changes
-        if (this.isModified('orderStatus')) {
-            this.statusHistory.push({
-                status: this.orderStatus,
-                timestamp: new Date(),
-                note: `Status changed to ${this.orderStatus}`
-            });
+        this.statusHistory.push({
+            status: this.orderStatus,
+            timestamp: new Date(),
+            note: `Status changed to ${this.orderStatus}`
+        });
 
-            // Set completion or cancellation date based on status
-            if (this.orderStatus === 'delivered' && !this.completedAt) {
-                this.completedAt = new Date();
-            } else if (this.orderStatus === 'cancelled' && !this.cancelledAt) {
-                this.cancelledAt = new Date();
-            }
+        // Set completion or cancellation date based on status
+        if (this.orderStatus === 'delivered' && !this.completedAt) {
+            this.completedAt = new Date();
+        } else if (this.orderStatus === 'cancelled' && !this.cancelledAt) {
+            this.cancelledAt = new Date();
         }
-
-        next()
     }
+
+    next();
 });
 
 OrderSchema.statics.createIndividualOrder = async function(data: {
@@ -515,4 +537,4 @@ OrderSchema.methods.cancelOrder = async function(reason?: string) {
   return this;
 };
 
-export const Order = mongoose.model<IOrder>('Order', OrderSchema);
+export const Order = mongoose.model<IOrder, IOrderModel>('Order', OrderSchema);
