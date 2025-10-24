@@ -70,3 +70,99 @@ export const getOrders = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
   }
 };
+
+// GET /api/admin/orders/:id - Get order details by ID
+export const getOrderById = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { id } = req.params;
+
+    // Validate order ID exists
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Order ID is required' });
+    }
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid order ID' });
+    }
+
+    const order = await Order.findById(id)
+      .populate('user', 'name email phone')
+      .populate('items.product', 'name image');
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        order
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
+
+// PATCH /api/admin/orders/:id/status - Update order status
+export const updateOrderStatus = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { id } = req.params;
+    const { status, note } = req.body;
+
+    // Validate order ID exists
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Order ID is required' });
+    }
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid order ID' });
+    }
+
+    // Validate status
+    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid status. Must be one of: pending, processing, shipped, delivered, cancelled' 
+      });
+    }
+
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Update order status
+    order.orderStatus = status;
+
+    // Add to status history
+    order.statusHistory.push({
+      status,
+      timestamp: new Date(),
+      note: note || `Status updated to ${status}`
+    });
+
+    // Set completion or cancellation date based on status
+    if (status === 'delivered' && !order.completedAt) {
+      order.completedAt = new Date();
+    } else if (status === 'cancelled' && !order.cancelledAt) {
+      order.cancelledAt = new Date();
+    }
+
+    await order.save();
+
+    return res.json({
+      success: true,
+      message: 'Order status updated successfully',
+      data: {
+        order
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};

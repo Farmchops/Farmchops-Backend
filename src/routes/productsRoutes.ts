@@ -7,7 +7,9 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
-  getProductStats
+  getProductStats,
+  getInventoryTracking,
+  updateProductStock
 } from '../controllers/productController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 import { uploadProductImages } from '../middleware/uploadMiddleware';
@@ -23,6 +25,12 @@ router.get('/search', searchProducts);
 
 // GET /api/products/admin/stats - Get product statistics (admin only)
 router.get('/admin/stats', authenticateToken, requireAdmin, getProductStats);
+
+// GET /api/products/admin/inventory - Get inventory tracking (admin only)
+router.get('/admin/inventory', authenticateToken, requireAdmin, getInventoryTracking);
+
+// PATCH /api/products/admin/:id/stock - Update product stock (admin only)
+router.patch('/admin/:id/stock', authenticateToken, requireAdmin, updateProductStock);
 
 // GET /api/products/:slug - Get single product
 router.get('/:slug', getProductBySlug);
