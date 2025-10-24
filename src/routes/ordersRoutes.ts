@@ -9,7 +9,7 @@ import {
   paystackWebhook,
   verifyPayment
 } from '../controllers/orderController';
-import { authenticateToken, optionalAuth } from '../middleware/auth';
+import { authenticateToken, optionalAuth, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
@@ -28,8 +28,8 @@ router.get('/number/:orderNumber', authenticateToken, getOrderByNumber);
 // Get order by ID (requires authentication)
 router.get('/:id', authenticateToken, getOrderById);
 
-// Cancel order (requires authentication)
-router.post('/:id/cancel', authenticateToken, cancelOrder);
+// Cancel order (requires admin authentication)
+router.post('/:id/cancel', authenticateToken, requireAdmin, cancelOrder);
 
 // Paystack webhook (no auth - verified by signature)
 router.post('/paystack/webhook', paystackWebhook);

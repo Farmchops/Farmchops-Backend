@@ -486,7 +486,7 @@ export const getOrderByNumber = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * Cancel order
+ * Cancel order (Admin only)
  * POST /api/orders/:id/cancel
  */
 export const cancelOrder = async (req: AuthRequest, res: Response) => {
@@ -499,11 +499,6 @@ export const cancelOrder = async (req: AuthRequest, res: Response) => {
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
-    }
-
-    // Ensure the order belongs to the user
-    if (order.user.toString() !== (req.user._id as mongoose.Types.ObjectId).toString()) {
-      return res.status(403).json({ success: false, message: 'Unauthorized access to order' });
     }
 
     const { reason } = req.body;

@@ -56,8 +56,7 @@ const WalletTransactionSchema = new Schema({
 
     reference: {
         type: String,
-        required: true,
-        unique: true
+        required: true
     },
 
     balanceBefore: {
@@ -81,7 +80,7 @@ const WalletTransactionSchema = new Schema({
 
 // Indexes
 WalletTransactionSchema.index({ userId: 1, createdAt: -1 }); // User transaction history
-WalletTransactionSchema.index({ reference: 1 }); // Transaction lookups
+WalletTransactionSchema.index({ reference: 1 }, { unique: true }); // Transaction lookups - unique
 WalletTransactionSchema.index({ orderId: 1 }); // Order related transactions
 WalletTransactionSchema.index({ type: 1, status: 1 }); // Transaction analytics
 

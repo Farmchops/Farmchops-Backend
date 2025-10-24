@@ -135,7 +135,6 @@ const OrderItemSchema = new Schema({
 const OrderSchema: Schema = new Schema({
     orderNumber: {
         type: String,
-        unique: true,
     },
 
     user: {
@@ -203,8 +202,6 @@ const OrderSchema: Schema = new Schema({
     paymentReference: {
         type: String,
         trim: true,
-        unique: true,
-        sparse: true,
         required: function(this: IOrder) {
             return 'paystack'.includes(this.paymentMethod)
         }
@@ -339,10 +336,10 @@ statusHistory: [{
 });
 
 OrderSchema.index({ user: 1, createdAt: -1 }); // User order history
-OrderSchema.index({ orderNumber: 1 }); // Order lookup
+OrderSchema.index({ orderNumber: 1 }, { unique: true }); // Order lookup - unique
 OrderSchema.index({ orderStatus: 1, createdAt: -1 }); // Admin dashboard
 OrderSchema.index({ paymentStatus: 1 }); // Payment queries
-OrderSchema.index({ paymentReference: 1 }); // Payment gateway lookups
+OrderSchema.index({ paymentReference: 1 }, { unique: true, sparse: true }); // Payment gateway lookups - unique, sparse
 OrderSchema.index({ 'groupOrder.groupId': 1 }); // Group order queries
 OrderSchema.index({ 'payLaterInfo.dueDate': 1, 'payLaterInfo.isPaid': 1 }); // Pay later tracking
 
