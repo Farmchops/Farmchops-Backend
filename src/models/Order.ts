@@ -124,18 +124,18 @@ const OrderItemSchema = new Schema({
         min: [1, 'Unit price must be at least 1 kobo']
     },
 
+
     totalPrice: {
         type: Number,
         required: [true, 'Total price is required'],
         min: [1, 'Unit price must be at least 1 kobo']
     }
-}, {_id: false});
+}, { _id: false });
 
 const OrderSchema: Schema = new Schema({
     orderNumber: {
         type: String,
         unique: true,
-        uppercase: true
     },
 
     user: {
@@ -197,7 +197,6 @@ const OrderSchema: Schema = new Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'WalletTransaction',
         required: function(this: IOrder) {
-            return this.paymentMethod === 'wallet'
         }
     },
 
