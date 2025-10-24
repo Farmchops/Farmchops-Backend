@@ -311,12 +311,12 @@ class EmailService {
     try {
       // Get the admin signup URL from environment or use default
       const adminSignupUrl = process.env.ADMIN_SIGNUP_URL || 'https://staging.farmchops.com/admin/signup';
-      
+
       // Create signup link with email pre-filled
       const signupLink = `${adminSignupUrl}?email=${encodeURIComponent(email)}`;
-      
+
       const template = createAdminInviteTemplate(otp, adminRole, signupLink);
-      
+
       const info = await this.getTransporter().sendMail({
         from: process.env.EMAIL_FROM || `"Farmchops Admin" <${process.env.EMAIL_USER}>`,
         to: email,
@@ -329,6 +329,234 @@ class EmailService {
       return true;
     } catch (error) {
       console.error("Error sending admin invite email:", error);
+      return false;
+    }
+  }
+
+  // Send order confirmation email
+  async sendOrderConfirmationEmail(email: string, orderData: {
+    orderNumber: string;
+    customerName: string;
+    items: Array<{ productName: string; quantity: number; price: number }>;
+    subtotal: number;
+    deliveryFee: number;
+    totalAmount: number;
+    deliveryAddress: string;
+    paymentMethod: string;
+  }): Promise<boolean> {
+    try {
+      const itemsList = orderData.items.map(item =>
+        `<tr>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">${item.productName}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">₦${(item.price / 100).toFixed(2)}</td>
+        </tr>`
+      ).join('');
+
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 30px 20px; }
+        .order-number { background-color: #f8f9fa; border: 2px solid #28a745; padding: 15px; font-size: 20px; font-weight: bold; text-align: center; margin: 20px 0; }
+        .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .items-table th { background-color: #f8f9fa; padding: 10px; text-align: left; border-bottom: 2px solid #ddd; }
+        .total-row { font-weight: bold; background-color: #f8f9fa; }
+        .info-box { background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px; }
+        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Order Confirmed!</h1>
+        </div>
+        <div class="content">
+            <p>Dear ${orderData.customerName},</p>
+
+            <p>Thank you for your order! We've received it and will start processing it shortly.</p>
+
+            <div class="order-number">
+                Order Number: ${orderData.orderNumber}
+            </div>
+
+            <h3>Order Summary</h3>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th style="text-align: center;">Quantity</th>
+                        <th style="text-align: right;">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsList}
+                    <tr>
+                        <td colspan="2" style="padding: 10px; text-align: right;">Subtotal:</td>
+                        <td style="padding: 10px; text-align: right;">₦${(orderData.subtotal / 100).toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="padding: 10px; text-align: right;">Delivery Fee:</td>
+                        <td style="padding: 10px; text-align: right;">₦${(orderData.deliveryFee / 100).toFixed(2)}</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td colspan="2" style="padding: 10px; text-align: right;">Total:</td>
+                        <td style="padding: 10px; text-align: right;">₦${(orderData.totalAmount / 100).toFixed(2)}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box">
+                <h4>Delivery Information</h4>
+                <p><strong>Address:</strong> ${orderData.deliveryAddress}</p>
+                <p><strong>Payment Method:</strong> ${orderData.paymentMethod.replace('_', ' ').toUpperCase()}</p>
+            </div>
+
+            <p>We'll send you another email when your order ships.</p>
+
+            <p>If you have any questions, please don't hesitate to contact us.</p>
+
+            <p>Best regards,<br>The Farmchops Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} Farmchops. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+      `;
+
+      const text = `
+Order Confirmed!
+
+Dear ${orderData.customerName},
+
+Thank you for your order! We've received it and will start processing it shortly.
+
+Order Number: ${orderData.orderNumber}
+
+Order Summary:
+${orderData.items.map(item => `- ${item.productName} x${item.quantity}: ₦${(item.price / 100).toFixed(2)}`).join('\n')}
+
+Subtotal: ₦${(orderData.subtotal / 100).toFixed(2)}
+Delivery Fee: ₦${(orderData.deliveryFee / 100).toFixed(2)}
+Total: ₦${(orderData.totalAmount / 100).toFixed(2)}
+
+Delivery Address: ${orderData.deliveryAddress}
+Payment Method: ${orderData.paymentMethod.replace('_', ' ').toUpperCase()}
+
+We'll send you another email when your order ships.
+
+Best regards,
+The Farmchops Team
+      `;
+
+      const info = await this.getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || `"Farmchops" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: `Order Confirmation - ${orderData.orderNumber}`,
+        text,
+        html,
+      });
+
+      console.log("Order confirmation email sent:", info.messageId);
+      return true;
+    } catch (error) {
+      console.error("Error sending order confirmation email:", error);
+      return false;
+    }
+  }
+
+  // Send payment success email
+  async sendPaymentSuccessEmail(email: string, data: {
+    orderNumber: string;
+    customerName: string;
+    amount: number;
+    paymentMethod: string;
+  }): Promise<boolean> {
+    try {
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 30px 20px; }
+        .success-icon { font-size: 48px; text-align: center; margin: 20px 0; }
+        .amount-box { background-color: #d4edda; border: 2px solid #28a745; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px; }
+        .amount { font-size: 32px; font-weight: bold; color: #28a745; }
+        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Payment Successful!</h1>
+        </div>
+        <div class="content">
+            <div class="success-icon">✓</div>
+
+            <p>Dear ${data.customerName},</p>
+
+            <p>Your payment has been successfully processed!</p>
+
+            <div class="amount-box">
+                <div style="font-size: 16px; color: #666; margin-bottom: 10px;">Amount Paid</div>
+                <div class="amount">₦${(data.amount / 100).toFixed(2)}</div>
+            </div>
+
+            <p><strong>Order Number:</strong> ${data.orderNumber}</p>
+            <p><strong>Payment Method:</strong> ${data.paymentMethod.replace('_', ' ').toUpperCase()}</p>
+
+            <p>Your order is now being processed and will be shipped soon. We'll keep you updated on its progress.</p>
+
+            <p>Thank you for shopping with Farmchops!</p>
+
+            <p>Best regards,<br>The Farmchops Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} Farmchops. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+      `;
+
+      const text = `
+Payment Successful!
+
+Dear ${data.customerName},
+
+Your payment has been successfully processed!
+
+Amount Paid: ₦${(data.amount / 100).toFixed(2)}
+Order Number: ${data.orderNumber}
+Payment Method: ${data.paymentMethod.replace('_', ' ').toUpperCase()}
+
+Your order is now being processed and will be shipped soon. We'll keep you updated on its progress.
+
+Thank you for shopping with Farmchops!
+
+Best regards,
+The Farmchops Team
+      `;
+
+      const info = await this.getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || `"Farmchops" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: `Payment Confirmed - ${data.orderNumber}`,
+        text,
+        html,
+      });
+
+      console.log("Payment success email sent:", info.messageId);
+      return true;
+    } catch (error) {
+      console.error("Error sending payment success email:", error);
       return false;
     }
   }
