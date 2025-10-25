@@ -397,7 +397,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         productId: mongoose.Types.ObjectId;
         quantity: number;
         priceType: 'retail' | 'bulk'
-    } [];
+    }[];
     deliveryInfo: {
         address: string,
         city: string,
@@ -408,35 +408,69 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
     deliveryFee?: number;
     payementReference?: string
 }) {
-    const Product = mongoose.model('Product')
+    const Product = mongoose.model('Product');
 
     const orderItems: IOrderItem[] = [];
-    let subtotal = 0
+    let subtotal = 0;
 
-    for (const item of data.items){
+    for (const item of data.items) {
         const product = await Product.findById(item.productId);
         if (!product) {
             throw new Error(`Product not found: ${item.productId}`);
         }
 
         if (!product.canFulfillOrder(item.quantity, item.priceType)) {
-            throw new Error (`Insufficient stock for ${product.name}`);
+            throw new Error(`Insufficient stock for ${product.name}`);
         }
 
-    const pricing = product.pricing[item.priceType];
-    const unitPrice = pricing.price / pricing.minQuantity;
-    const totalPrice = unitPrice * item.quantity;
-    
-    orderItems.push({
-      product: item.productId,
-      productName: product.name,
-      quantity: item.quantity,
-      priceType: item.priceType,
-      unitPrice,
-      totalPrice
-    });
+        // Add validation for pricing object
+        if (!product.pricing) {
+            throw new Error(`Product ${product.name} has no pricing information`);
+        }
 
-    subtotal += totalPrice;
+        let pricing;
+        
+        if (item.priceType === 'retail') {
+            pricing = product.pricing.retail;
+            
+            if (!pricing) {
+                throw new Error(`Product ${product.name} does not have retail pricing`);
+            }
+        } else if (item.priceType === 'bulk') {
+            // Check if bulkTiers exist and have at least one tier
+            if (!product.pricing.bulkTiers || product.pricing.bulkTiers.length === 0) {
+                throw new Error(`Product ${product.name} does not have bulk pricing available`);
+            }
+            
+            // Use the first bulk tier (or you could find the appropriate tier based on quantity)
+            pricing = product.pricing.bulkTiers[0];
+        } else {
+            throw new Error(`Invalid price type: ${item.priceType}. Must be 'retail' or 'bulk'`);
+        }
+
+        // Check if price exists
+        if (typeof pricing.price !== 'number' || pricing.price <= 0) {
+            throw new Error(`Invalid price for ${product.name} ${item.priceType} pricing`);
+        }
+
+        // Check if minQuantity exists and is valid
+        if (typeof pricing.minQuantity !== 'number' || pricing.minQuantity <= 0) {
+            throw new Error(`Invalid minQuantity for ${product.name} ${item.priceType} pricing`);
+        }
+
+        const unitPrice = pricing.price / pricing.minQuantity;
+        const totalPrice = unitPrice * item.quantity;
+        
+        orderItems.push({
+            product: item.productId,
+            productName: product.name,
+            quantity: item.quantity,
+            priceType: item.priceType,
+            unitPrice,
+            totalPrice
+        });
+
+        subtotal += totalPrice;
     }
 
     const deliveryFee = data.deliveryFee || 0;
@@ -452,15 +486,15 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         deliveryInfo: data.deliveryInfo,
         paymentReference: data.payementReference,
         paymentProvider: ['paystack', 'flutterwave'].includes(data.paymentMethod)
-         ? data.paymentMethod as 'paystack'
-         : undefined,
+            ? data.paymentMethod as 'paystack'
+            : undefined,
         payLaterInfo: data.paymentMethod === 'pay_later' ? {
-           dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-      amountDue: totalAmount,
-      isPaid: false,
-      repaymentTransactions: []
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+            amountDue: totalAmount,
+            isPaid: false,
+            repaymentTransactions: []
         } : undefined
-    })
+    });
 
     await order.save();
 
