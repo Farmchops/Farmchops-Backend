@@ -423,7 +423,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             throw new Error (`Insufficient stock for ${product.name}`);
         }
 
-        const pricing = product.pricing[item.priceType];
+    const pricing = product.pricing[item.priceType];
     const unitPrice = pricing.price / pricing.minQuantity;
     const totalPrice = unitPrice * item.quantity;
     
