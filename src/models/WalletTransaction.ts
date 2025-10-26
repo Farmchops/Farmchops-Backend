@@ -86,6 +86,22 @@ WalletTransactionSchema.index({ type: 1, status: 1 }); // Transaction analytics
 
 // Static method to create a transaction
 WalletTransactionSchema.statics.createTransaction = async function(transactionData) {
+    // Add defensive validation with detailed error messages
+    if (!transactionData) {
+        console.error('WalletTransaction.createTransaction called with undefined transactionData');
+        throw new Error('Transaction data is required');
+    }
+
+    if (!transactionData.userId) {
+        console.error('WalletTransaction.createTransaction missing userId:', transactionData);
+        throw new Error('User ID is required for transaction');
+    }
+
+    if (!transactionData.type) {
+        console.error('WalletTransaction.createTransaction missing type:', transactionData);
+        throw new Error('Transaction type is required');
+    }
+
     const user = await mongoose.model('User').findById(transactionData.userId);
     if (!user) {
         throw new Error('User not found');

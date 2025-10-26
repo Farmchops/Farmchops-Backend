@@ -553,8 +553,8 @@ OrderSchema.methods.cancelOrder = async function(reason?: string) {
     }
   }
   
-  // Process refund if payment was made
-  if (this.paymentStatus === 'paid' && this.walletTransaction) {
+  // Process refund if payment was made via wallet
+  if (this.paymentStatus === 'paid' && this.paymentMethod === 'wallet' && this.walletTransaction) {
     await WalletTransaction.createTransaction({
       userId: this.user,
       type: 'refund',
