@@ -170,12 +170,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         const paystackResponse = await paystackService.initializeTransaction(
           user.email,
           order.totalAmount,
-          paymentReference!,
-          {
-            orderId: (order._id as mongoose.Types.ObjectId).toString(),
-            orderNumber: order.orderNumber,
-            customerId: (req.user._id as mongoose.Types.ObjectId).toString()
-          }
+          paymentReference!
         );
 
         return res.status(201).json({
