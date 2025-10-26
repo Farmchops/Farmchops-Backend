@@ -15,7 +15,7 @@ import User from '../models/User';
 const BASE_FEE = 200; // base delivery fee
 const PER_KM = 100; // per kilometer
 const MIN_FEE = 300;
-const FREE_THRESHOLD = 50000; // free delivery if subtotal >= this (in kobo)
+const FREE_THRESHOLD = 10000000; // free delivery if subtotal >= this (in kobo) - 100,000 Naira
 
 function calculateFee(subtotal: number, distanceKm: number): number {
   if (subtotal >= FREE_THRESHOLD) return 0;
