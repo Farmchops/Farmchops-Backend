@@ -115,6 +115,22 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Cart is empty' });
     }
 
+    // Calculate delivery fee if not provided
+    let calculatedDeliveryFee = deliveryFee;
+    if (!calculatedDeliveryFee || calculatedDeliveryFee === 0) {
+      try {
+        // Use warehouse coordinates from env or default
+        const warehouse = process.env.DEFAULT_WAREHOUSE_COORDS || '6.5244,3.3792';
+        const distanceResult = await getDistanceBetween(warehouse, deliveryInfo.address);
+        const distanceKm = Number((distanceResult.distanceMeters / 1000).toFixed(2));
+        calculatedDeliveryFee = calculateFee(cart.totalAmount, distanceKm);
+      } catch (error) {
+        console.error('Error calculating delivery fee:', error);
+        // Use minimum fee if calculation fails
+        calculatedDeliveryFee = MIN_FEE;
+      }
+    }
+
     // Convert cart items to order items format
     const orderItems = cart.items.map((item) => ({
       productId: new mongoose.Types.ObjectId(item.productId),
@@ -134,7 +150,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       items: orderItems,
       deliveryInfo,
       paymentMethod,
-      deliveryFee: deliveryFee || 0,
+      deliveryFee: calculatedDeliveryFee,
       payementReference: paymentReference
     });
 
