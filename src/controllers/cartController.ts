@@ -67,7 +67,7 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
     const tierName = getTierNameForType(product, priceType, quantity);
 
     const existingIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType
+      (item) => item.productId === productId && item.priceType === priceType && item.tierName === tierName
     );
 
     if (existingIndex > -1 && cart.items[existingIndex]) {
@@ -155,7 +155,7 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<R
     const cart = await getCart(req);
 
     const itemIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType
+      (item) => item.productId === productId && item.priceType === priceType && item.tierName === (req.body.tierName || undefined)
     );
 
     if (itemIndex === -1) {
@@ -265,7 +265,7 @@ export const removeCartItem = async (req: AuthRequest, res: Response): Promise<R
     const cart = await getCart(req);
 
     const itemIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType
+      (item) => item.productId === productId && item.priceType === priceType && item.tierName === (req.body.tierName || undefined)
     );
 
     if (itemIndex === -1) {

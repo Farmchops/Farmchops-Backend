@@ -15,7 +15,12 @@ export const addToCartValidation = [
   body('priceType')
     .optional()
     .isIn(['retail', 'bulk'])
-    .withMessage('Price type must be either retail or bulk')
+    .withMessage('Price type must be either retail or bulk'),
+
+  body('tierName')
+    .optional()
+    .isString()
+    .withMessage('Tier name must be a string')
 ];
 
 // Update cart - productId in BODY (not params!)
@@ -32,7 +37,12 @@ export const updateCartValidation = [
   
   body('priceType')
     .isIn(['retail', 'bulk'])
-    .withMessage('Price type must be retail or bulk')
+    .withMessage('Price type must be retail or bulk'),
+
+  body('tierName')
+    .optional()
+    .isString()
+    .withMessage('Tier name must be a string')
 ];
 
 // Remove from cart - productId in PARAMS
@@ -43,5 +53,10 @@ export const removeFromCartValidation = [
 
   body('priceType')
     .isIn(['retail', 'bulk'])
-    .withMessage('Price type must be retail or bulk')
+    .withMessage('Price type must be retail or bulk'),
+
+  body('tierName')
+    .optional()
+    .isString()
+    .withMessage('Tier name must be a string')
 ];
