@@ -187,12 +187,6 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<R
       });
     }
 
-    const newPriceType = getOptimalPriceType(product, quantity);
-    const newPrice = getPriceForType(product, newPriceType, quantity);
-    const newUnit = getUnitForType(product, newPriceType, quantity);
-    const newMinQuantity = getMinQuantityForType(product, newPriceType, quantity);
-    const newTierName = getTierNameForType(product, newPriceType, quantity);
-
     const item = cart.items[itemIndex];
     if (!item) {
       return res.status(404).json({
@@ -201,12 +195,8 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<R
       });
     }
 
+    // Only update the quantity - keep the user's selected tier/priceType unchanged
     item.quantity = quantity;
-    item.priceType = newPriceType;
-    item.price = newPrice;
-    item.unit = newUnit;
-    item.minQuantity = newMinQuantity;
-    item.tierName = newTierName;
 
     recalculateCart(cart);
     await saveCart(req, cart);
