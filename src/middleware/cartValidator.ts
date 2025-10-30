@@ -7,15 +7,48 @@ export const addToCartValidation = [
     .withMessage('Product ID is required')
     .isMongoId()
     .withMessage('Invalid product ID'),
-  
+
+  body('name')
+    .notEmpty()
+    .withMessage('Product name is required')
+    .isString()
+    .withMessage('Product name must be a string'),
+
+  body('image')
+    .notEmpty()
+    .withMessage('Product image is required')
+    .isString()
+    .withMessage('Product image must be a string'),
+
+  body('price')
+    .notEmpty()
+    .withMessage('Price is required')
+    .isNumeric()
+    .withMessage('Price must be a number')
+    .custom((value) => value > 0)
+    .withMessage('Price must be greater than 0'),
+
   body('quantity')
     .isInt({ min: 1, max: 1000 })
     .withMessage('Quantity must be between 1 and 1000'),
-  
+
+  body('unit')
+    .notEmpty()
+    .withMessage('Unit is required')
+    .isString()
+    .withMessage('Unit must be a string'),
+
   body('priceType')
-    .optional()
+    .notEmpty()
+    .withMessage('Price type is required')
     .isIn(['retail', 'bulk'])
     .withMessage('Price type must be either retail or bulk'),
+
+  body('minQuantity')
+    .notEmpty()
+    .withMessage('Minimum quantity is required')
+    .isInt({ min: 1 })
+    .withMessage('Minimum quantity must be at least 1'),
 
   body('tierName')
     .optional()

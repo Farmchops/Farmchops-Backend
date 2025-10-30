@@ -27,9 +27,20 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
     });
   }
 
-  const { productId, quantity } = req.body;
+  const {
+    productId,
+    name,
+    image,
+    price,
+    quantity,
+    unit,
+    priceType,
+    minQuantity,
+    tierName
+  } = req.body;
 
   try {
+    // Still validate product exists and is available
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
@@ -60,12 +71,8 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
     }
 
     const cart = await getCart(req);
-    const priceType = getOptimalPriceType(product, quantity);
-    const price = getPriceForType(product, priceType, quantity);
-    const unit = getUnitForType(product, priceType, quantity);
-    const minQuantity = getMinQuantityForType(product, priceType, quantity);
-    const tierName = getTierNameForType(product, priceType, quantity);
 
+    // Use the tier information sent from frontend, don't recalculate
     const existingIndex = cart.items.findIndex(
       (item) => item.productId === productId && item.priceType === priceType && item.tierName === tierName
     );
@@ -80,10 +87,11 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
       }
       cart.items[existingIndex].quantity = newQuantity;
     } else {
+      // Use all data from frontend request
       cart.items.push({
-        productId: (product._id as string | { toString(): string }).toString(),
-        name: product.name,
-        image: product.images[0] || '',
+        productId,
+        name,
+        image,
         price,
         quantity,
         unit,
