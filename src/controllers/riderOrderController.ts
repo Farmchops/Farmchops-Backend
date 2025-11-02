@@ -15,11 +15,25 @@ export const confirmDelivery = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Invalid order ID' });
     }
 
+    const payload = { ...req.body };
+    if (!payload.handoverCode && typeof payload.customerHandoverCode === 'string') {
+      payload.handoverCode = payload.customerHandoverCode;
+    }
+    if (!payload.handoverCode && typeof payload.code === 'string') {
+      payload.handoverCode = payload.code;
+    }
+    if (!payload.handoverCode && typeof payload.handover_code === 'string') {
+      payload.handoverCode = payload.handover_code;
+    }
+    if (typeof payload.handoverCode === 'string') {
+      payload.handoverCode = payload.handoverCode.trim();
+    }
+
     const result = await performAction({
       orderId: id,
       action: 'confirm-delivery',
       user: req.user,
-      payload: req.body || {}
+      payload
     });
 
     await result.order.populate({ path: 'user', select: 'firstName lastName phone' });
