@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Order, IOrder } from '../models/Order';
+import User from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions, getWorkflowConfig } from '../services/orderWorkflowService';
 
@@ -218,6 +219,89 @@ export const getOrderAvailableActions = async (req: AuthRequest, res: Response):
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
+
+export const listRiders = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { search = '', status = 'active' } = req.query as { search?: string; status?: string };
+
+    const filter: Record<string, unknown> = {
+      role: 'admin',
+      adminRole: 'rider'
+    };
+
+    if (status === 'inactive') {
+      filter.isActive = false;
+    } else if (status === 'all') {
+      // leave isActive unspecified
+    } else {
+      filter.isActive = true;
+    }
+
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      filter.$or = [
+        { firstName: regex },
+        { lastName: regex },
+        { email: regex },
+        { phone: regex }
+      ];
+    }
+
+    const riders = await User.find(filter)
+      .select('firstName lastName email phone isActive adminRole permissions')
+      .sort({ firstName: 1, lastName: 1, email: 1 });
+
+    const riderIds = riders.map((rider) => rider._id);
+    const activeOrders = riderIds.length
+      ? await Order.aggregate([
+          {
+            $match: {
+              'assignedRider.rider': { $in: riderIds },
+              orderStatus: { $in: ['awaiting_pickup', 'en_route'] }
+            }
+          },
+          {
+            $group: {
+              _id: '$assignedRider.rider',
+              count: { $sum: 1 }
+            }
+          }
+        ])
+      : [];
+
+    const activeMap = new Map<string, number>(activeOrders.map((entry) => [String(entry._id), entry.count]));
+
+    const data = riders.map((rider) => ({
+      _id: rider._id,
+      firstName: rider.firstName,
+      lastName: rider.lastName,
+      email: rider.email,
+      phone: rider.phone,
+      isActive: rider.isActive,
+      adminRole: rider.adminRole,
+      permissions: rider.permissions,
+      isOnDelivery: activeMap.get(String(rider._id)) ? true : false,
+      activeDeliveries: activeMap.get(String(rider._id)) || 0
+    }));
+
+    return res.json({
+      success: true,
+      data: {
+        riders: data,
+        total: riders.length
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch riders'
+    });
   }
 };
 
