@@ -88,19 +88,36 @@ export const getAssignedOrders = async (req: AuthRequest, res: Response) => {
     const limit = Number(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const query = {
-      'assignedRider.rider': req.user._id,
+    const riderId = req.user._id as mongoose.Types.ObjectId;
+
+    const activeQuery = {
+      'assignedRider.rider': riderId,
       orderStatus: { $in: ['awaiting_pickup', 'en_route', 'failed_delivery'] }
     } as Record<string, unknown>;
 
-    const [orders, total] = await Promise.all([
-      Order.find(query)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const [orders, total, awaitingPickup, enRoute, deliveredToday, totalWithRider] = await Promise.all([
+      Order.find(activeQuery)
         .populate('user', 'firstName lastName phone')
         .skip(skip)
         .limit(limit)
         .sort({ updatedAt: -1 }),
-      Order.countDocuments(query)
+      Order.countDocuments(activeQuery),
+      Order.countDocuments({ 'assignedRider.rider': riderId, orderStatus: 'awaiting_pickup' }),
+      Order.countDocuments({ 'assignedRider.rider': riderId, orderStatus: 'en_route' }),
+      Order.countDocuments({
+        'assignedRider.rider': riderId,
+        orderStatus: 'delivered',
+        handoverVerifiedAt: { $gte: startOfToday, $lte: endOfToday }
+      }),
+      Order.countDocuments({ 'assignedRider.rider': riderId })
     ]);
+
+    const otherStatuses = Math.max(totalWithRider - awaitingPickup - enRoute - deliveredToday, 0);
 
     return res.json({
       success: true,
@@ -108,7 +125,13 @@ export const getAssignedOrders = async (req: AuthRequest, res: Response) => {
         orders,
         page,
         pageSize: limit,
-        total
+        total,
+        metrics: {
+          awaitingPickup,
+          enRoute,
+          deliveredToday,
+          otherStatuses
+        }
       }
     });
   } catch (error) {
