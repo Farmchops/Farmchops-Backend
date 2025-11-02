@@ -15,7 +15,7 @@ export const confirmDelivery = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Invalid order ID' });
     }
 
-    const payload = { ...req.body };
+    const payload = { ...req.body } as Record<string, any>;
     if (!payload.handoverCode && typeof payload.customerHandoverCode === 'string') {
       payload.handoverCode = payload.customerHandoverCode;
     }
@@ -27,6 +27,14 @@ export const confirmDelivery = async (req: AuthRequest, res: Response) => {
     }
     if (typeof payload.handoverCode === 'string') {
       payload.handoverCode = payload.handoverCode.trim();
+    }
+
+    if (!payload.proof && req.file) {
+      payload.proof = {
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      };
     }
 
     const result = await performAction({
