@@ -343,6 +343,7 @@ class EmailService {
     totalAmount: number;
     deliveryAddress: string;
     paymentMethod: string;
+    handoverCode?: string;
   }): Promise<boolean> {
     try {
       const itemsList = orderData.items.map(item =>
@@ -352,6 +353,14 @@ class EmailService {
           <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">₦${(item.price / 100).toFixed(2)}</td>
         </tr>`
       ).join('');
+
+      const handoverCodeSection = orderData.handoverCode ? `
+            <div class="info-box">
+                <h4>Delivery Verification Code</h4>
+                <p>Please share this code with the Farmchops rider when your order arrives. The rider will enter it to confirm delivery.</p>
+                <div class="order-number" style="margin-top: 10px;">${orderData.handoverCode}</div>
+            </div>
+      ` : '';
 
       const html = `
 <!DOCTYPE html>
@@ -414,6 +423,8 @@ class EmailService {
                 <p><strong>Address:</strong> ${orderData.deliveryAddress}</p>
                 <p><strong>Payment Method:</strong> ${orderData.paymentMethod.replace('_', ' ').toUpperCase()}</p>
             </div>
+
+            ${handoverCodeSection}
 
             <p>We'll send you another email when your order ships.</p>
 

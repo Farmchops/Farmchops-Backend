@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
+import crypto from 'crypto';
 import { WalletTransaction } from './WalletTransaction';
 
 interface IOrderItem {
@@ -8,6 +9,30 @@ interface IOrderItem {
     priceType: 'retail' | 'bulk';
     unitPrice: number;
     totalPrice: number;
+}
+
+export type OrderStatus =
+    | 'pending_payment'
+    | 'ready_for_processing'
+    | 'processing'
+    | 'ready_for_dispatch'
+    | 'awaiting_pickup'
+    | 'en_route'
+    | 'delivered'
+    | 'completed'
+    | 'cancelled'
+    | 'failed_delivery';
+
+export type OrderStageOwner = 'system' | 'processing' | 'logistics' | 'rider' | 'support';
+
+export interface OrderStatusHistoryEntry {
+    status: OrderStatus;
+    timestamp?: Date;
+    note?: string;
+    updatedBy?: mongoose.Types.ObjectId;
+    updatedByName?: string;
+    role?: string;
+    metadata?: Record<string, any>;
 }
 
 export interface IOrder extends Document {
@@ -27,7 +52,8 @@ export interface IOrder extends Document {
 
     paymentMethod: 'wallet' | 'pay_later' | 'paystack'
     paymentStatus: 'pending' | 'paid' | 'failed';
-    orderStatus: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+    orderStatus: OrderStatus;
+    currentStageOwnerRole: OrderStageOwner;
 
     walletTransaction?: mongoose.Types.ObjectId;
     paymentReference?: string;
@@ -64,11 +90,21 @@ export interface IOrder extends Document {
         deliveryNote?: string
     };
 
-    statusHistory: {
-        status: string;
-        timestamp: Date;
-        note?: string
-    }[];
+    statusHistory: OrderStatusHistoryEntry[];
+
+    assignedRider?: {
+        rider: mongoose.Types.ObjectId;
+        assignedBy: mongoose.Types.ObjectId;
+        assignedAt: Date;
+        note?: string;
+    };
+
+    handoverCodeHash?: string;
+    handoverCodeMasked?: string;
+    handoverCodeIssuedAt?: Date;
+    handoverCodeActive: boolean;
+    handoverCodeAttempts: number;
+    handoverVerifiedAt?: Date;
 
     completedAt?: Date;
     cancelledAt?: Date;
@@ -76,6 +112,7 @@ export interface IOrder extends Document {
     // Instance methods
     processWalletPayment(): Promise<IOrder>;
     cancelOrder(reason?: string): Promise<IOrder>;
+    addStatusHistory(entry: OrderStatusHistoryEntry): void;
 }
 
 // Model with static methods
@@ -188,8 +225,14 @@ const OrderSchema: Schema = new Schema({
 
     orderStatus: {
         type: String,
-        enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
-        default: 'pending'
+        enum: ['pending_payment', 'ready_for_processing', 'processing', 'ready_for_dispatch', 'awaiting_pickup', 'en_route', 'delivered', 'completed', 'cancelled', 'failed_delivery'],
+        default: 'pending_payment'
+    },
+
+    currentStageOwnerRole: {
+        type: String,
+        enum: ['system', 'processing', 'logistics', 'rider', 'support'],
+        default: 'system'
     },
 
     walletTransaction: {
@@ -216,12 +259,12 @@ const OrderSchema: Schema = new Schema({
     }
   },
 
-  providerResponse: {
-    type: mongoose.Schema.Types.Mixed,
-    default: null
-  },
+    providerResponse: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+    },
 
-  payLaterInfo: {
+    payLaterInfo: {
     dueDate: {
         type: Date,
         required: function(this: IOrder){
@@ -292,6 +335,12 @@ deliveryInfo: {
         trim: true,
         maxlength: 50
     },
+    state: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 50
+    },
     phoneNumber: {
         type: String,
         required: [true, 'Phone number is required'],
@@ -305,9 +354,52 @@ deliveryInfo: {
     }
 },
 
+assignedRider: {
+    rider: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    assignedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    assignedAt: Date,
+    note: {
+        type: String,
+        trim: true,
+        maxlength: 500
+    }
+},
+
+handoverCodeHash: {
+    type: String,
+    select: false
+},
+
+handoverCodeMasked: {
+    type: String,
+    default: null
+},
+
+handoverCodeIssuedAt: Date,
+
+handoverCodeActive: {
+    type: Boolean,
+    default: false
+},
+
+handoverCodeAttempts: {
+    type: Number,
+    default: 0,
+    select: false
+},
+
+handoverVerifiedAt: Date,
+
 statusHistory: [{
     status: {
         type: String,
+        enum: ['pending_payment', 'ready_for_processing', 'processing', 'ready_for_dispatch', 'awaiting_pickup', 'en_route', 'delivered', 'completed', 'cancelled', 'failed_delivery'],
         required: true
     },
     timestamp: {
@@ -317,6 +409,24 @@ statusHistory: [{
     note: {
         type: String,
         trim: true
+    },
+    updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    updatedByName: {
+        type: String,
+        trim: true,
+        maxlength: 120
+    },
+    role: {
+        type: String,
+        trim: true,
+        maxlength: 60
+    },
+    metadata: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
     }
   }],
 
@@ -358,6 +468,28 @@ OrderSchema.virtual('summary').get(function(this: IOrder) {
     };
 });
 
+const generateHandoverCode = () => {
+    const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const hashed = crypto.createHash('sha256').update(code).digest('hex');
+    const masked = `***-${code.slice(-4)}`;
+    return { code, hashed, masked };
+};
+
+OrderSchema.methods.addStatusHistory = function(entry: OrderStatusHistoryEntry) {
+    if (!Array.isArray(this.statusHistory)) {
+        this.statusHistory = [];
+    }
+    this.statusHistory.push({
+        status: entry.status,
+        timestamp: entry.timestamp || new Date(),
+        note: entry.note,
+        updatedBy: entry.updatedBy,
+        updatedByName: entry.updatedByName,
+        role: entry.role,
+        metadata: entry.metadata || null
+    });
+};
+
 OrderSchema.pre<IOrder>('save', async function(next) {
     if (this.isNew) {
         const year = new Date().getFullYear();
@@ -367,24 +499,32 @@ OrderSchema.pre<IOrder>('save', async function(next) {
 
         this.orderNumber =  `FCP-${year}-${String(count + 1).padStart(7, '0')}`;
 
-        this.statusHistory = [{
-            status: this.orderStatus,
-            timestamp: new Date(),
-            note: 'Order created'
-        }];
-    } else if (this.isModified('orderStatus')) {
-        // Update status history and completion dates when status changes
-        this.statusHistory.push({
-            status: this.orderStatus,
-            timestamp: new Date(),
-            note: `Status changed to ${this.orderStatus}`
-        });
+        if (!this.handoverCodeHash) {
+            const { code, hashed, masked } = generateHandoverCode();
+            (this as any).handoverCodePlain = code;
+            this.handoverCodeHash = hashed;
+            this.handoverCodeMasked = masked;
+            this.handoverCodeIssuedAt = new Date();
+            this.handoverCodeActive = true;
+            this.handoverCodeAttempts = 0;
+        }
 
-        // Set completion or cancellation date based on status
-        if (this.orderStatus === 'delivered' && !this.completedAt) {
-            this.completedAt = new Date();
-        } else if (this.orderStatus === 'cancelled' && !this.cancelledAt) {
-            this.cancelledAt = new Date();
+        if (!this.statusHistory || this.statusHistory.length === 0) {
+            this.statusHistory = [{
+                status: this.orderStatus,
+                timestamp: new Date(),
+                note: 'Order created',
+                role: 'system',
+                updatedByName: 'System'
+            }];
+        }
+    } else {
+        if (this.isModified('orderStatus')) {
+            if (this.orderStatus === 'delivered' && !this.completedAt) {
+                this.completedAt = new Date();
+            } else if (this.orderStatus === 'cancelled' && !this.cancelledAt) {
+                this.cancelledAt = new Date();
+            }
         }
     }
 
@@ -498,6 +638,11 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
 
     await order.save();
 
+    const handoverCodePlain = (order as any).handoverCodePlain;
+    if (handoverCodePlain) {
+        order.set('handoverCodePlain', handoverCodePlain, { strict: false });
+    }
+
     // Process wallet payment if that's the payment method
     if (data.paymentMethod === 'wallet') {
         await order.processWalletPayment();
@@ -533,16 +678,42 @@ OrderSchema.methods.processWalletPayment = async function() {
 
   this.walletTransaction = transaction._id;
   this.paymentStatus = 'paid';
+    if (this.orderStatus === 'pending_payment') {
+        this.orderStatus = 'ready_for_processing';
+        this.currentStageOwnerRole = 'processing';
+        this.addStatusHistory({
+            status: 'ready_for_processing',
+            note: 'Wallet payment confirmed',
+            role: 'system',
+            updatedByName: 'System'
+        });
+    }
   await this.save();
   return this;
 };
 
 OrderSchema.methods.cancelOrder = async function(reason?: string) {
-  if (!['pending', 'confirmed'].includes(this.orderStatus)) {
-    throw new Error('Only pending or confirmed orders can be cancelled');
+    const cancellableStatuses: OrderStatus[] = [
+        'pending_payment',
+        'ready_for_processing',
+        'processing',
+        'ready_for_dispatch',
+        'awaiting_pickup'
+    ];
+
+    if (!cancellableStatuses.includes(this.orderStatus)) {
+        throw new Error('Order cannot be cancelled at the current stage');
   }
   
   this.orderStatus = 'cancelled';
+    this.currentStageOwnerRole = 'support';
+    this.handoverCodeActive = false;
+    this.addStatusHistory({
+        status: 'cancelled',
+        note: reason || 'Order cancelled',
+        role: 'system',
+        updatedByName: 'System'
+    });
   
   // Restore product stock
   const Product = mongoose.model('Product');

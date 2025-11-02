@@ -7,7 +7,8 @@ export const ROLES = {
   LOGISTICS: 'logistics',
   CUSTOMER_SUPPORT: 'customer_support',
   FINANCE: 'finance',
-  ADMIN: 'admin' // General admin role
+  ADMIN: 'admin', // General admin role
+  RIDER: 'rider'
 } as const;
 
 export const PERMISSIONS = {
@@ -42,17 +43,35 @@ export const PERMISSIONS = {
   
   // Admin management (super admin only)
   MANAGE_ADMINS: 'manage_admins',
+
+  // Order workflow permissions
+  ORDERS_PROCESSING_START: 'orders.processing.start',
+  ORDERS_PROCESSING_COMPLETE: 'orders.processing.complete',
+  ORDERS_DISPATCH_ASSIGN: 'orders.dispatch.assign',
+  ORDERS_DISPATCH_HANDOVER: 'orders.dispatch.handover',
+  ORDERS_DISPATCH_FAIL: 'orders.dispatch.fail',
+  ORDERS_DISPATCH_RETURN: 'orders.dispatch.return',
+  ORDERS_DELIVERY_CONFIRM: 'orders.delivery.confirm',
+  ORDERS_DELIVERY_CLOSE: 'orders.delivery.close',
+  ORDERS_OVERRIDE_CANCEL: 'orders.override.cancel',
+  ORDERS_OVERRIDE_CHANGE: 'orders.override.change',
+  ORDERS_WORKFLOW_VIEW: 'orders.workflow.view',
   
   // Super admin has all permissions
   ALL: '*'
 } as const;
 
 export const ORDER_STATUS = {
-  PENDING: 'pending',                    // Order placed, awaiting payment
-  PROCESSING: 'processing',              // Payment confirmed, picking/packing
-  OUT_FOR_DELIVERY: 'out_for_delivery', // Dispatched to customer
-  DELIVERED: 'delivered',                // Customer received order
-  CANCELLED: 'cancelled'                 // Order cancelled
+  PENDING_PAYMENT: 'pending_payment',
+  READY_FOR_PROCESSING: 'ready_for_processing',
+  PROCESSING: 'processing',
+  READY_FOR_DISPATCH: 'ready_for_dispatch',
+  AWAITING_PICKUP: 'awaiting_pickup',
+  EN_ROUTE: 'en_route',
+  DELIVERED: 'delivered',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+  FAILED_DELIVERY: 'failed_delivery'
 } as const;
 
 // Map each role to its permissions
@@ -71,19 +90,32 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   [ROLES.OPERATIONS_OFFICER]: [
     PERMISSIONS.VIEW_ORDERS,
     PERMISSIONS.APPROVE_ORDERS,
-    PERMISSIONS.UPDATE_ORDER_STATUS
+    PERMISSIONS.UPDATE_ORDER_STATUS,
+    PERMISSIONS.ORDERS_PROCESSING_START,
+    PERMISSIONS.ORDERS_PROCESSING_COMPLETE,
+    PERMISSIONS.ORDERS_WORKFLOW_VIEW,
+    PERMISSIONS.ORDERS_OVERRIDE_CANCEL
   ],
   
   [ROLES.LOGISTICS]: [
     PERMISSIONS.VIEW_LOGISTICS,
     PERMISSIONS.VIEW_ORDERS,
-    PERMISSIONS.CONFIRM_DELIVERY
+    PERMISSIONS.CONFIRM_DELIVERY,
+    PERMISSIONS.ORDERS_DISPATCH_ASSIGN,
+    PERMISSIONS.ORDERS_DISPATCH_HANDOVER,
+    PERMISSIONS.ORDERS_DISPATCH_FAIL,
+    PERMISSIONS.ORDERS_DISPATCH_RETURN,
+    PERMISSIONS.ORDERS_WORKFLOW_VIEW,
+    PERMISSIONS.ORDERS_OVERRIDE_CANCEL
   ],
   
   [ROLES.CUSTOMER_SUPPORT]: [
     PERMISSIONS.VIEW_ORDERS, // Read-only
     PERMISSIONS.VIEW_CUSTOMER_FEEDBACK,
-    PERMISSIONS.RESPOND_TO_FEEDBACK
+    PERMISSIONS.RESPOND_TO_FEEDBACK,
+    PERMISSIONS.ORDERS_DELIVERY_CLOSE,
+    PERMISSIONS.ORDERS_WORKFLOW_VIEW,
+    PERMISSIONS.ORDERS_OVERRIDE_CANCEL
   ],
   
   [ROLES.FINANCE]: [
@@ -98,7 +130,13 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.VIEW_PRODUCTS,
     PERMISSIONS.MANAGE_PRODUCTS,
     PERMISSIONS.MANAGE_CATEGORIES,
-    PERMISSIONS.VIEW_ORDERS
+    PERMISSIONS.VIEW_ORDERS,
+    PERMISSIONS.ORDERS_WORKFLOW_VIEW
+  ],
+
+  [ROLES.RIDER]: [
+    PERMISSIONS.ORDERS_DELIVERY_CONFIRM,
+    PERMISSIONS.ORDERS_WORKFLOW_VIEW
   ]
 };
 

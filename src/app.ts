@@ -37,6 +37,8 @@ import emailService from './services/emailService';
 import adminAuthRoutes from './routes/adminAuthRoutes';
 import adminManagementRoutes from './routes/adminManagementRoutes';
 import ordersRoutes from './routes/ordersRoutes';
+import adminOrderRoutes from './routes/adminOrderRoutes';
+import riderOrderRoutes from './routes/riderOrderRoutes';
 // import placesRoutes from './routes/placesRoutes';
 
 
@@ -74,8 +76,8 @@ app.use('/api/cart', cart)
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/management', adminManagementRoutes);
 app.use('/api/orders', ordersRoutes);
-import adminOrderRoutes from './routes/adminOrderRoutes';
 app.use('/api/admin', adminOrderRoutes);
+app.use('/api/rider', riderOrderRoutes);
 // app.use('/api/places', placesRoutes);
 
 

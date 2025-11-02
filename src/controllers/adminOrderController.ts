@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
-import { Order } from '../models/Order';
 import mongoose from 'mongoose';
+import { Order, IOrder } from '../models/Order';
+import { AuthRequest } from '../middleware/auth';
+import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions, getWorkflowConfig } from '../services/orderWorkflowService';
 
 // GET /api/admin/orders?search=&status=&page=&limit=&sort=
 export const getOrders = async (req: Request, res: Response) => {
@@ -35,12 +37,13 @@ export const getOrders = async (req: Request, res: Response) => {
       query.createdAt = { $gte: start, $lte: end };
     }
 
-    // Populate user for customer name search
+        // Populate user for customer name/email search using firstName/lastName/email
     let userMatch = null;
     if (search) {
       userMatch = await mongoose.model('User').find({
         $or: [
-          { name: { $regex: search, $options: 'i' } },
+          { firstName: { $regex: search, $options: 'i' } },
+          { lastName: { $regex: search, $options: 'i' } },
           { email: { $regex: search, $options: 'i' } }
         ]
       }, '_id');
@@ -50,7 +53,9 @@ export const getOrders = async (req: Request, res: Response) => {
     }
 
     const orders = await Order.find(query)
-      .populate('user', 'name email')
+      .populate('user', 'firstName lastName email')
+      .populate('items.product', 'name images')
+      .populate('assignedRider.rider', 'firstName lastName phone adminRole')
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(Number(limit));
@@ -72,9 +77,9 @@ export const getOrders = async (req: Request, res: Response) => {
 };
 
 // GET /api/admin/orders/:id - Get order details by ID
-export const getOrderById = async (req: Request, res: Response): Promise<Response> => {
+export const getOrderById = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
 
     // Validate order ID exists
     if (!id) {
@@ -87,17 +92,22 @@ export const getOrderById = async (req: Request, res: Response): Promise<Respons
     }
 
     const order = await Order.findById(id)
-      .populate('user', 'name email phone')
-      .populate('items.product', 'name image');
+      .populate('user', 'firstName lastName email phone')
+      .populate('items.product', 'name images')
+      .populate('assignedRider.rider', 'firstName lastName phone adminRole')
+      .populate('statusHistory.updatedBy', 'firstName lastName email adminRole');
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    const availableActions = req.user ? getAvailableActions(order, req.user) : [];
+
     return res.json({
       success: true,
       data: {
-        order
+        order,
+        availableActions
       }
     });
   } catch (error) {
@@ -106,63 +116,114 @@ export const getOrderById = async (req: Request, res: Response): Promise<Respons
 };
 
 // PATCH /api/admin/orders/:id/status - Update order status
-export const updateOrderStatus = async (req: Request, res: Response): Promise<Response> => {
-  try {
-    const { id } = req.params;
-    const { status, note } = req.body;
+const populateOrder = async (order: IOrder | null) => {
+  if (!order) {
+    return order;
+  }
 
-    // Validate order ID exists
-    if (!id) {
-      return res.status(400).json({ success: false, message: 'Order ID is required' });
+  await order.populate([
+    { path: 'user', select: 'firstName lastName email phone adminRole' },
+    { path: 'items.product', select: 'name images' },
+    { path: 'assignedRider.rider', select: 'firstName lastName phone adminRole' },
+    { path: 'statusHistory.updatedBy', select: 'firstName lastName email adminRole' }
+  ]);
+
+  return order;
+};
+
+const createActionHandler = (action: WorkflowAction) => async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    // Validate MongoDB ObjectId
+    const { id } = req.params as { id: string };
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid order ID' });
     }
 
-    // Validate status
-    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-    if (!status || !validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid status. Must be one of: pending, processing, shipped, delivered, cancelled' 
+    const result = await performAction({
+      orderId: id,
+      action,
+      user: req.user,
+      payload: req.body || {}
+    });
+
+    await populateOrder(result.order);
+
+    const availableActions = getAvailableActions(result.order, req.user);
+
+    return res.json({
+      success: true,
+      message: 'Order updated successfully',
+      data: {
+        order: result.order,
+        transition: {
+          from: result.previousStatus,
+          to: result.order.orderStatus,
+          action: result.action
+        },
+        availableActions
+      }
+    });
+  } catch (error) {
+    if (error instanceof OrderWorkflowError) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message,
+        code: error.code,
+        details: error.details
       });
     }
 
-    const order = await Order.findById(id);
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Server error'
+    });
+  }
+};
 
+export const markOrderProcessing = createActionHandler('mark-processing');
+export const markOrderReadyForDispatch = createActionHandler('mark-ready-for-dispatch');
+export const assignOrderRider = createActionHandler('assign-rider');
+export const confirmOrderPickup = createActionHandler('confirm-pickup');
+export const failOrderDelivery = createActionHandler('fail-delivery');
+export const returnOrderToDispatch = createActionHandler('return-to-dispatch');
+export const cancelOrder = createActionHandler('cancel-order');
+export const closeOrder = createActionHandler('close-order');
+
+export const getOrderAvailableActions = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { id } = req.params as { id: string };
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid order ID' });
+    }
+
+    const order = await Order.findById(id);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // Update order status
-    order.orderStatus = status;
-
-    // Add to status history
-    order.statusHistory.push({
-      status,
-      timestamp: new Date(),
-      note: note || `Status updated to ${status}`
-    });
-
-    // Set completion or cancellation date based on status
-    if (status === 'delivered' && !order.completedAt) {
-      order.completedAt = new Date();
-    } else if (status === 'cancelled' && !order.cancelledAt) {
-      order.cancelledAt = new Date();
-    }
-
-    await order.save();
+    const availableActions = getAvailableActions(order, req.user);
 
     return res.json({
       success: true,
-      message: 'Order status updated successfully',
       data: {
-        order
+        actions: availableActions
       }
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
   }
+};
+
+export const getOrderWorkflowConfiguration = (_req: Request, res: Response): Response => {
+  return res.json({
+    success: true,
+    data: getWorkflowConfig()
+  });
 };
