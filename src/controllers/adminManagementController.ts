@@ -108,8 +108,8 @@ export const updateAdminRole = async (
     }
 
     // Validate admin role
-    const validRoles = ['inventory_officer', 'operations_officer', 'logistics', 
-                       'customer_support', 'finance', 'admin'];
+  const validRoles = ['inventory_officer', 'operations_officer', 'logistics', 
+             'customer_support', 'finance', 'admin', 'rider'];
     if (!validRoles.includes(adminRole)) {
       res.status(400).json({
         success: false,
