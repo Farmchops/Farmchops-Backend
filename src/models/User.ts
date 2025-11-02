@@ -21,7 +21,7 @@ export interface IUser extends Document {
   passwordResetToken?: string;
   passwordResetExpires?: Date;
   adminRole?: 'super_admin' | 'inventory_officer' | 'operations_officer' |
-              'logistics' | 'customer_support' | 'finance' | 'admin';
+              'logistics' | 'customer_support' | 'finance' | 'admin' | 'rider';
   permissions: string[];
   isActive: boolean;
   invitedBy?: mongoose.Types.ObjectId;
@@ -78,7 +78,7 @@ const UserSchema = new Schema<IUser>({
   adminRole: {
     type: String,
     enum: ['super_admin', 'inventory_officer', 'operations_officer', 'logistics',
-           'customer_support', 'finance', 'admin'],
+           'customer_support', 'finance', 'admin', 'rider'],
     required: function(this: IUser) {
       return this.role === 'admin';
     }

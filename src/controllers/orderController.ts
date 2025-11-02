@@ -157,7 +157,9 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Clear the cart after successful order creation
     await clearCart(req);
 
-    // Populate order details for response
+  const handoverCode = (order as any).handoverCodePlain;
+
+  // Populate order details for response
     await order.populate('user', 'firstName lastName email');
     await order.populate('items.product', 'name images');
 
@@ -176,7 +178,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         deliveryFee: order.deliveryFee,
         totalAmount: order.totalAmount,
         deliveryAddress: `${deliveryInfo.address}, ${deliveryInfo.city}, ${deliveryInfo.state}`,
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod,
+        handoverCode
       });
     }
 
@@ -199,6 +202,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
           message: 'Order created successfully',
           data: {
             order,
+            handoverCode,
             payment: {
               authorizationUrl: paystackResponse.data.authorization_url,
               accessCode: paystackResponse.data.access_code,
@@ -212,7 +216,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
           success: false,
           message: 'Order created but payment initialization failed',
           error: paystackError.message,
-          data: { order }
+          data: { order, handoverCode }
         });
       }
     }
@@ -226,6 +230,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         message: 'Order created successfully',
         data: {
           order,
+          handoverCode,
           paymentLink,
           expiresIn: '7 days'
         }
@@ -235,7 +240,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     return res.status(201).json({
       success: true,
       message: 'Order created successfully',
-      data: { order }
+      data: { order, handoverCode }
     });
 
   } catch (error: any) {
@@ -279,7 +284,16 @@ export const paystackWebhook = async (req: Request, res: Response) => {
       // Update order payment status
       if (order.paymentStatus !== 'paid') {
         order.paymentStatus = 'paid';
-        order.orderStatus = 'processing';
+        if (order.orderStatus !== 'ready_for_processing') {
+          order.orderStatus = 'ready_for_processing';
+          order.currentStageOwnerRole = 'processing';
+          order.addStatusHistory({
+            status: 'ready_for_processing',
+            note: 'Paystack payment confirmed',
+            role: 'system',
+            updatedByName: 'System'
+          });
+        }
         order.providerResponse = event.data;
         await order.save();
 
@@ -343,7 +357,16 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
 
       if (order.paymentStatus !== 'paid') {
         order.paymentStatus = 'paid';
-        order.orderStatus = 'processing';
+        if (order.orderStatus !== 'ready_for_processing') {
+          order.orderStatus = 'ready_for_processing';
+          order.currentStageOwnerRole = 'processing';
+          order.addStatusHistory({
+            status: 'ready_for_processing',
+            note: 'Paystack payment verified manually',
+            role: 'system',
+            updatedByName: 'System'
+          });
+        }
         order.providerResponse = paystackResponse.data;
         await order.save();
 
