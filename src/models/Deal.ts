@@ -4,6 +4,7 @@ export type DealStatus =
   | 'draft'
   | 'scheduled'
   | 'active'
+  | 'paused'
   | 'sold_out'
   | 'ended'
   | 'cancelled';
@@ -81,7 +82,7 @@ const DealSchema = new Schema<IDeal, IDealModel>({
   },
   status: {
     type: String,
-    enum: ['draft', 'scheduled', 'active', 'sold_out', 'ended', 'cancelled'],
+    enum: ['draft', 'scheduled', 'active', 'paused', 'sold_out', 'ended', 'cancelled'],
     default: 'scheduled',
     index: true
   },
@@ -131,8 +132,17 @@ DealSchema.statics.determineStatus = function({ startAt, endAt, soldUnits = 0, m
   if (status === 'cancelled') {
     return 'cancelled';
   }
-
   const now = new Date();
+  if (status === 'paused') {
+    if (soldUnits >= maxUnits) {
+      return 'sold_out';
+    }
+    if (now > endAt) {
+      return 'ended';
+    }
+    return 'paused';
+  }
+
   if (now < startAt) {
     return 'scheduled';
   }

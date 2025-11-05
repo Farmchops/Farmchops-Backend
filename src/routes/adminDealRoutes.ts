@@ -5,6 +5,8 @@ import {
   createDeal,
   updateDeal,
   cancelDeal,
+  pauseDeal,
+  resumeDeal,
   listDeals,
   getDeal,
   getDealStats,
@@ -25,6 +27,8 @@ router.put('/:id', updateDeal);
 router.patch('/:id', updateDeal);
 router.patch('/:id/status', updateDealStatus);
 router.post('/:id/activate', activateDeal);
+router.post('/:id/pause', pauseDeal);
+router.post('/:id/resume', resumeDeal);
 router.post('/:id/cancel', cancelDeal);
 router.get('/:id/stats', getDealStats);
 

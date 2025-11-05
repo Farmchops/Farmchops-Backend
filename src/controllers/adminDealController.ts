@@ -4,7 +4,6 @@ import { Deal, IDeal, DealStatus } from '../models/Deal';
 import { Product } from '../models/Product';
 import { DealRedemption } from '../models/DealRedemption';
 import { AuthRequest } from '../middleware/auth';
-
 const toNumber = (value: unknown) => {
   if (value === undefined || value === null) {
     return undefined;
@@ -238,6 +237,103 @@ export const cancelDeal = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const pauseDeal = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { id } = req.params as { id: string };
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid deal id' });
+    }
+
+    const deal = await Deal.findById(id);
+    if (!deal) {
+      return res.status(404).json({ success: false, message: 'Deal not found' });
+    }
+
+    if (deal.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Cancelled deals cannot be paused' });
+    }
+
+    if (deal.status === 'ended') {
+      return res.status(400).json({ success: false, message: 'Ended deals cannot be paused' });
+    }
+
+    if (deal.status === 'sold_out') {
+      return res.status(400).json({ success: false, message: 'Sold out deals cannot be paused' });
+    }
+
+    if (deal.status === 'paused') {
+      await attachProduct(deal);
+      return res.json({ success: true, data: deal });
+    }
+
+    deal.status = 'paused';
+    await deal.save();
+    await attachProduct(deal);
+
+    return res.json({ success: true, data: deal });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to pause deal' });
+  }
+};
+
+export const resumeDeal = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { id } = req.params as { id: string };
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid deal id' });
+    }
+
+    const deal = await Deal.findById(id);
+    if (!deal) {
+      return res.status(404).json({ success: false, message: 'Deal not found' });
+    }
+
+    if (deal.status !== 'paused') {
+      return res.status(400).json({ success: false, message: 'Only paused deals can be resumed' });
+    }
+
+    const now = new Date();
+    if (now > deal.endAt) {
+      deal.status = 'ended';
+      await deal.save();
+      return res.status(400).json({ success: false, message: 'Deal end time has passed' });
+    }
+
+    if (deal.soldUnits >= deal.maxUnits) {
+      deal.status = 'sold_out';
+      await deal.save();
+      return res.status(400).json({ success: false, message: 'Deal is already sold out' });
+    }
+
+    const nextStatus = Deal.determineStatus({
+      startAt: deal.startAt,
+      endAt: deal.endAt,
+      soldUnits: deal.soldUnits,
+      maxUnits: deal.maxUnits
+    });
+
+    deal.status = nextStatus;
+    if (deal.cancelledAt) {
+      deal.cancelledAt = undefined;
+    }
+
+    await deal.save();
+    await attachProduct(deal);
+
+    return res.json({ success: true, data: deal });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to resume deal' });
+  }
+};
+
 export const listDeals = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -386,7 +482,7 @@ export const updateDealStatus = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'status is required' });
     }
 
-    const allowedStatuses: DealStatus[] = ['draft', 'scheduled', 'active', 'sold_out', 'ended', 'cancelled'];
+  const allowedStatuses: DealStatus[] = ['draft', 'scheduled', 'active', 'paused', 'sold_out', 'ended', 'cancelled'];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid status value' });
     }

@@ -33,16 +33,13 @@ const decorateDeal = async (deal: any) => {
 export const getActiveDeal = async (_req: Request, res: Response) => {
   try {
     const now = new Date();
-      const deal = await Deal.findOne({
-        status: { $in: ['active', 'scheduled'] },
-        startAt: { $lte: now },
-        endAt: { $gte: now }
-      }).sort({ startAt: 1 });
+    const deals = await Deal.find({
+      status: { $in: ['active', 'scheduled'] },
+      startAt: { $lte: now },
+      endAt: { $gte: now }
+    }).sort({ startAt: -1, createdAt: -1 });
 
-    if (!deal) {
-      return res.json({ success: true, data: { deal: null } });
-    }
-
+    const summaries = await Promise.all(deals.map(async (deal) => {
       const computedStatus = Deal.determineStatus({
         startAt: deal.startAt,
         endAt: deal.endAt,
@@ -56,8 +53,16 @@ export const getActiveDeal = async (_req: Request, res: Response) => {
         await deal.save();
       }
 
-  const summary = await decorateDeal(deal);
-  return res.json({ success: true, data: summary });
+      return decorateDeal(deal);
+    }));
+
+    return res.json({
+      success: true,
+      data: {
+        deal: summaries[0] ?? null,
+        deals: summaries
+      }
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to fetch active deal' });
   }
