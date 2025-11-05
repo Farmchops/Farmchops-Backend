@@ -349,6 +349,30 @@ export const resumeDeal = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const deleteDeal = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { id } = req.params as { id: string };
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid deal id' });
+    }
+
+    const deal = await Deal.findById(id);
+    if (!deal) {
+      return res.status(404).json({ success: false, message: 'Deal not found' });
+    }
+
+    await Deal.deleteOne({ _id: deal._id });
+
+    return res.json({ success: true, message: 'Deal deleted' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to delete deal' });
+  }
+};
+
 export const listDeals = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {

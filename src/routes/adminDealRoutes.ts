@@ -7,6 +7,7 @@ import {
   cancelDeal,
   pauseDeal,
   resumeDeal,
+  deleteDeal,
   listDeals,
   getDeal,
   getDealStats,
@@ -31,5 +32,6 @@ router.post('/:id/pause', pauseDeal);
 router.post('/:id/resume', resumeDeal);
 router.post('/:id/cancel', cancelDeal);
 router.get('/:id/stats', getDealStats);
+router.delete('/:id', deleteDeal);
 
 export default router;
