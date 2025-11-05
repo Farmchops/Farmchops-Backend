@@ -369,3 +369,49 @@ export const getDealStats = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to fetch deal stats' });
   }
 };
+
+export const updateDealStatus = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { id } = req.params as { id: string };
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid deal id' });
+    }
+
+    const { status } = req.body as { status?: DealStatus };
+    if (!status || typeof status !== 'string') {
+      return res.status(400).json({ success: false, message: 'status is required' });
+    }
+
+    const allowedStatuses: DealStatus[] = ['draft', 'scheduled', 'active', 'sold_out', 'ended', 'cancelled'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
+    }
+
+    const deal = await Deal.findById(id);
+    if (!deal) {
+      return res.status(404).json({ success: false, message: 'Deal not found' });
+    }
+
+    if (deal.status === 'cancelled' && status !== 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Cancelled deals cannot be reactivated' });
+    }
+
+    deal.status = status;
+    if (status === 'cancelled') {
+      deal.cancelledAt = new Date();
+    } else if (deal.cancelledAt) {
+      deal.cancelledAt = undefined;
+    }
+
+    await deal.save();
+    await attachProduct(deal);
+
+    return res.json({ success: true, data: deal });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to update deal status' });
+  }
+};

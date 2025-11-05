@@ -7,7 +7,8 @@ import {
   cancelDeal,
   listDeals,
   getDeal,
-  getDealStats
+  getDealStats,
+  updateDealStatus
 } from '../controllers/adminDealController';
 
 const router = Router();
@@ -20,6 +21,8 @@ router.get('/', listDeals);
 router.post('/', createDeal);
 router.get('/:id', getDeal);
 router.put('/:id', updateDeal);
+router.patch('/:id', updateDeal);
+router.patch('/:id/status', updateDealStatus);
 router.post('/:id/cancel', cancelDeal);
 router.get('/:id/stats', getDealStats);
 
