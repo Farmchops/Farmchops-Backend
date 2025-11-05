@@ -415,3 +415,50 @@ export const updateDealStatus = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to update deal status' });
   }
 };
+
+export const activateDeal = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { id } = req.params as { id: string };
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid deal id' });
+    }
+
+    const deal = await Deal.findById(id);
+    if (!deal) {
+      return res.status(404).json({ success: false, message: 'Deal not found' });
+    }
+
+    if (deal.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Cancelled deals cannot be activated' });
+    }
+
+    const now = new Date();
+    if (deal.endAt <= now) {
+      return res.status(400).json({ success: false, message: 'Deal end time has passed' });
+    }
+
+    if (deal.soldUnits >= deal.maxUnits) {
+      return res.status(400).json({ success: false, message: 'Deal is already sold out' });
+    }
+
+    if (deal.startAt > now) {
+      deal.startAt = now;
+    }
+
+    deal.status = 'active';
+    if (deal.cancelledAt) {
+      deal.cancelledAt = undefined;
+    }
+
+    await deal.save();
+    await attachProduct(deal);
+
+    return res.json({ success: true, data: deal });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to activate deal' });
+  }
+};

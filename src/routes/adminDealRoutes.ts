@@ -8,7 +8,8 @@ import {
   listDeals,
   getDeal,
   getDealStats,
-  updateDealStatus
+  updateDealStatus,
+  activateDeal
 } from '../controllers/adminDealController';
 
 const router = Router();
@@ -23,6 +24,7 @@ router.get('/:id', getDeal);
 router.put('/:id', updateDeal);
 router.patch('/:id', updateDeal);
 router.patch('/:id/status', updateDealStatus);
+router.post('/:id/activate', activateDeal);
 router.post('/:id/cancel', cancelDeal);
 router.get('/:id/stats', getDealStats);
 
