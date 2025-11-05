@@ -59,8 +59,9 @@ export const getActiveDeal = async (_req: Request, res: Response) => {
     return res.json({
       success: true,
       data: {
-        deal: summaries[0] ?? null,
-        deals: summaries
+        deal: summaries[0]?.deal ?? null,
+        metrics: summaries[0]?.metrics ?? null,
+        deals: summaries.map((entry) => ({ deal: entry.deal, metrics: entry.metrics }))
       }
     });
   } catch (error) {
