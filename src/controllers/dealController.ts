@@ -2,30 +2,31 @@ import { Request, Response } from 'express';
 import { Deal } from '../models/Deal';
 
 const decorateDeal = async (deal: any) => {
-  if (!deal) {
-    return null;
-  }
   await deal.populate({ path: 'product', select: 'name images pricing stock slug' });
   const remainingUnits = Math.max(deal.maxUnits - deal.soldUnits, 0);
   const now = Date.now();
   const countdownSeconds = Math.max(Math.floor((deal.endAt.getTime() - now) / 1000), 0);
   return {
-    dealId: deal._id,
-    title: deal.title,
-    description: deal.description,
-    heroImage: deal.heroImage,
-    startAt: deal.startAt,
-    endAt: deal.endAt,
-    status: deal.status,
-    maxUnits: deal.maxUnits,
-    perUserLimit: deal.perUserLimit,
-    remainingUnits,
-    soldUnits: deal.soldUnits,
-    product: deal.product,
-    dealPrice: deal.dealPrice ?? null,
-    discountPercentage: deal.discountPercentage ?? null,
-    countdownSeconds,
-    soldOut: deal.status === 'sold_out' || remainingUnits === 0
+    deal: {
+      dealId: deal._id,
+      title: deal.title,
+      description: deal.description,
+      heroImage: deal.heroImage,
+      startAt: deal.startAt,
+      endAt: deal.endAt,
+      status: deal.status,
+      maxUnits: deal.maxUnits,
+      perUserLimit: deal.perUserLimit,
+      soldUnits: deal.soldUnits,
+      product: deal.product,
+      dealPrice: deal.dealPrice ?? null,
+      discountPercentage: deal.discountPercentage ?? null
+    },
+    metrics: {
+      remainingUnits,
+      countdownSeconds,
+      soldOut: deal.status === 'sold_out' || remainingUnits === 0
+    }
   };
 };
 
@@ -39,7 +40,7 @@ export const getActiveDeal = async (_req: Request, res: Response) => {
       }).sort({ startAt: 1 });
 
     if (!deal) {
-      return res.json({ success: true, data: null });
+      return res.json({ success: true, data: { deal: null } });
     }
 
       const computedStatus = Deal.determineStatus({
@@ -55,8 +56,8 @@ export const getActiveDeal = async (_req: Request, res: Response) => {
         await deal.save();
       }
 
-      const summary = await decorateDeal(deal);
-    return res.json({ success: true, data: summary });
+  const summary = await decorateDeal(deal);
+  return res.json({ success: true, data: summary });
   } catch (error) {
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to fetch active deal' });
   }
@@ -86,7 +87,7 @@ export const getUpcomingDeals = async (_req: Request, res: Response) => {
       }
       return decorateDeal(deal);
     }));
-    return res.json({ success: true, data: summaries });
+    return res.json({ success: true, data: { deals: summaries } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to fetch upcoming deals' });
   }
