@@ -17,7 +17,7 @@ export interface IDeal extends Document {
   maxUnits: number;
   perUserLimit: number;
   startAt: Date;
-  endAt: Date;
+  endAt?: Date;
   status: DealStatus;
   soldUnits: number;
   reservedUnits: number;
@@ -32,8 +32,8 @@ export interface IDeal extends Document {
 
 export interface IDealModel extends Model<IDeal> {
   determineStatus(payload: {
-    startAt: Date;
-    endAt: Date;
+    startAt?: Date;
+    endAt?: Date;
     soldUnits?: number;
     maxUnits: number;
     status?: DealStatus;
@@ -74,11 +74,10 @@ const DealSchema = new Schema<IDeal, IDealModel>({
   },
   startAt: {
     type: Date,
-    required: true
+    default: () => new Date()
   },
   endAt: {
-    type: Date,
-    required: true
+    type: Date
   },
   status: {
     type: String,
@@ -123,8 +122,8 @@ DealSchema.index({ startAt: 1, endAt: 1 });
 DealSchema.index({ isFeatured: 1 });
 
 DealSchema.statics.determineStatus = function({ startAt, endAt, soldUnits = 0, maxUnits, status }: {
-  startAt: Date;
-  endAt: Date;
+  startAt?: Date;
+  endAt?: Date;
   soldUnits?: number;
   maxUnits: number;
   status?: DealStatus;
@@ -133,26 +132,31 @@ DealSchema.statics.determineStatus = function({ startAt, endAt, soldUnits = 0, m
     return 'cancelled';
   }
   const now = new Date();
+  const effectiveStart = startAt ?? now;
+
   if (status === 'paused') {
     if (soldUnits >= maxUnits) {
       return 'sold_out';
     }
-    if (now > endAt) {
+    if (endAt && now > endAt) {
       return 'ended';
     }
     return 'paused';
   }
 
-  if (now < startAt) {
-    return 'scheduled';
-  }
   if (soldUnits >= maxUnits) {
     return 'sold_out';
   }
-  if (now >= startAt && now <= endAt) {
-    return 'active';
+
+  if (now < effectiveStart) {
+    return 'scheduled';
   }
-  return now > endAt ? 'ended' : 'scheduled';
+
+  if (endAt && now > endAt) {
+    return 'ended';
+  }
+
+  return 'active';
 };
 
 export const Deal = mongoose.model<IDeal, IDealModel>('Deal', DealSchema);

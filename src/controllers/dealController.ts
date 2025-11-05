@@ -5,15 +5,16 @@ const decorateDeal = async (deal: any) => {
   await deal.populate({ path: 'product', select: 'name images pricing stock slug' });
   const remainingUnits = Math.max(deal.maxUnits - deal.soldUnits, 0);
   const now = Date.now();
-  const countdownSeconds = Math.max(Math.floor((deal.endAt.getTime() - now) / 1000), 0);
+  const endAtValue = deal.endAt instanceof Date ? deal.endAt : undefined;
+  const countdownSeconds = endAtValue ? Math.max(Math.floor((endAtValue.getTime() - now) / 1000), 0) : null;
   return {
     deal: {
       dealId: deal._id,
       title: deal.title,
       description: deal.description,
       heroImage: deal.heroImage,
-      startAt: deal.startAt,
-      endAt: deal.endAt,
+      startAt: deal.startAt ?? null,
+      endAt: endAtValue ?? null,
       status: deal.status,
       maxUnits: deal.maxUnits,
       perUserLimit: deal.perUserLimit,
@@ -36,7 +37,11 @@ export const getActiveDeal = async (_req: Request, res: Response) => {
     const deals = await Deal.find({
       status: { $in: ['active', 'scheduled'] },
       startAt: { $lte: now },
-      endAt: { $gte: now }
+      $or: [
+        { endAt: { $exists: false } },
+        { endAt: null },
+        { endAt: { $gte: now } }
+      ]
     }).sort({ startAt: -1, createdAt: -1 });
 
     const summaries = await Promise.all(deals.map(async (deal) => {

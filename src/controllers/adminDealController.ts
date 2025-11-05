@@ -51,18 +51,29 @@ export const createDeal = async (req: AuthRequest, res: Response) => {
       isFeatured
     } = req.body;
 
-    if (!title || !productId || !maxUnits || !startAt || !endAt) {
-      return res.status(400).json({ success: false, message: 'title, productId, maxUnits, startAt, and endAt are required' });
+    if (!title || !productId || !maxUnits) {
+      return res.status(400).json({ success: false, message: 'title, productId, and maxUnits are required' });
     }
 
-    const start = new Date(startAt);
-    const end = new Date(endAt);
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return res.status(400).json({ success: false, message: 'startAt and endAt must be valid dates' });
+    let start = new Date();
+    if (startAt) {
+      const parsedStart = new Date(startAt);
+      if (Number.isNaN(parsedStart.getTime())) {
+        return res.status(400).json({ success: false, message: 'startAt must be a valid date' });
+      }
+      start = parsedStart;
     }
 
-    if (start >= end) {
+    let end: Date | undefined;
+    if (endAt) {
+      const parsedEnd = new Date(endAt);
+      if (Number.isNaN(parsedEnd.getTime())) {
+        return res.status(400).json({ success: false, message: 'endAt must be a valid date' });
+      }
+      end = parsedEnd;
+    }
+
+    if (end && start >= end) {
       return res.status(400).json({ success: false, message: 'startAt must be earlier than endAt' });
     }
 
@@ -101,7 +112,7 @@ export const createDeal = async (req: AuthRequest, res: Response) => {
   maxUnits: numericMaxUnits,
   perUserLimit: numericPerUserLimit,
       startAt: start,
-      endAt: end,
+      ...(end ? { endAt: end } : {}),
       status: 'scheduled',
       description,
       heroImage,
@@ -175,24 +186,28 @@ export const updateDeal = async (req: AuthRequest, res: Response) => {
       }
       updates.perUserLimit = numeric;
     }
-    if (req.body.startAt) {
+    if (req.body.startAt !== undefined) {
       const start = new Date(req.body.startAt);
       if (Number.isNaN(start.getTime())) {
         return res.status(400).json({ success: false, message: 'startAt must be a valid date' });
       }
       updates.startAt = start;
     }
-    if (req.body.endAt) {
-      const end = new Date(req.body.endAt);
-      if (Number.isNaN(end.getTime())) {
-        return res.status(400).json({ success: false, message: 'endAt must be a valid date' });
+    if (req.body.endAt !== undefined) {
+      if (req.body.endAt === null || req.body.endAt === '') {
+        updates.endAt = undefined;
+      } else {
+        const end = new Date(req.body.endAt);
+        if (Number.isNaN(end.getTime())) {
+          return res.status(400).json({ success: false, message: 'endAt must be a valid date' });
+        }
+        updates.endAt = end;
       }
-      updates.endAt = end;
     }
 
     const effectiveStart = updates.startAt ?? deal.startAt;
     const effectiveEnd = updates.endAt ?? deal.endAt;
-    if (effectiveStart >= effectiveEnd) {
+    if (effectiveEnd && effectiveStart >= effectiveEnd) {
       return res.status(400).json({ success: false, message: 'startAt must be earlier than endAt' });
     }
 
@@ -301,7 +316,7 @@ export const resumeDeal = async (req: AuthRequest, res: Response) => {
     }
 
     const now = new Date();
-    if (now > deal.endAt) {
+    if (deal.endAt && now > deal.endAt) {
       deal.status = 'ended';
       await deal.save();
       return res.status(400).json({ success: false, message: 'Deal end time has passed' });
@@ -533,7 +548,7 @@ export const activateDeal = async (req: AuthRequest, res: Response) => {
     }
 
     const now = new Date();
-    if (deal.endAt <= now) {
+    if (deal.endAt && deal.endAt <= now) {
       return res.status(400).json({ success: false, message: 'Deal end time has passed' });
     }
 
