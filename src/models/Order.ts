@@ -177,6 +177,15 @@ const OrderItemSchema = new Schema({
         required: false
     }
 }, { _id: false });
+    // Always include 'deal' in JSON responses
+    OrderItemSchema.set('toJSON', {
+        transform: function (doc, ret) {
+            if (doc.deal) {
+                ret.deal = doc.deal;
+            }
+            return ret;
+        }
+    });
 
 const OrderSchema: Schema = new Schema({
     orderNumber: {
