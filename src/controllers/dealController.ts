@@ -3,6 +3,25 @@ import { Deal } from '../models/Deal';
 
 const decorateDeal = async (deal: any) => {
   await deal.populate({ path: 'product', select: 'name images pricing stock slug' });
+
+  // Ensure the returned product object includes a reference back to this deal.
+  // This makes it easy for clients that receive the populated product to
+  // include the deal id when adding the product to cart.
+  let productObj: any;
+  try {
+    productObj = deal.product && typeof deal.product.toObject === 'function' ? deal.product.toObject() : deal.product;
+  } catch (e) {
+    productObj = deal.product;
+  }
+
+  if (productObj) {
+    // Add both common keys used by clients as strings to match how cart stores dealId
+    // (cart and session compare dealId as strings).
+    const dealIdStr = String(deal._id);
+    productObj.dealId = dealIdStr;
+    productObj.deal = dealIdStr;
+  }
+
   const remainingUnits = Math.max(deal.maxUnits - deal.soldUnits, 0);
   const now = Date.now();
   const endAtValue = deal.endAt instanceof Date ? deal.endAt : undefined;
@@ -19,7 +38,7 @@ const decorateDeal = async (deal: any) => {
       maxUnits: deal.maxUnits,
       perUserLimit: deal.perUserLimit,
       soldUnits: deal.soldUnits,
-      product: deal.product,
+      product: productObj,
       dealPrice: deal.dealPrice ?? null,
       discountPercentage: deal.discountPercentage ?? null
     },

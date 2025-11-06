@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { validationResult } from 'express-validator';
 import { Product } from '../models/Product';
+import { Deal } from '../models/Deal';
 import { AuthRequest } from '../middleware/auth';
 import {
   getCart,
@@ -40,7 +41,28 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
     dealId
   } = req.body;
 
-  const normalizedDealId = dealId ? String(dealId) : undefined;
+  let normalizedDealId = dealId ? String(dealId) : undefined;
+
+    // Server-side fallback: if frontend selected a deal-specific tier (e.g. 'deal-of-the-day')
+    // but didn't send a dealId, try to find an active deal for this product and attach it.
+    // This prevents clients that omit the dealId from bypassing deal reservation logic.
+    if (!normalizedDealId && tierName && tierName.toLowerCase().includes('deal')) {
+      try {
+        const now = new Date();
+        const activeDeal = await Deal.findOne({
+          product: productId,
+          status: { $in: ['active'] },
+          startAt: { $lte: now },
+          $or: [ { endAt: { $exists: false } }, { endAt: null }, { endAt: { $gte: now } } ]
+        }).sort({ startAt: -1, createdAt: -1 });
+
+        if (activeDeal) {
+          normalizedDealId = String(activeDeal._id);
+        }
+      } catch (e) {
+        console.error('Error finding active deal for product during addToCart fallback:', e);
+      }
+    }
 
   try {
     // Still validate product exists and is available
