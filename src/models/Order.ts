@@ -1,6 +1,8 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 import crypto from 'crypto';
 import { WalletTransaction } from './WalletTransaction';
+import { Deal, IDeal } from './Deal';
+import { DealRedemption } from './DealRedemption';
 
 interface IOrderItem {
     product: mongoose.Types.ObjectId;
@@ -9,6 +11,7 @@ interface IOrderItem {
     priceType: 'retail' | 'bulk';
     unitPrice: number;
     totalPrice: number;
+    deal?: mongoose.Types.ObjectId;
 }
 
 export type OrderStatus =
@@ -166,6 +169,12 @@ const OrderItemSchema = new Schema({
         type: Number,
         required: [true, 'Total price is required'],
         min: [1, 'Unit price must be at least 1 kobo']
+    },
+
+    deal: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Deal',
+        required: false
     }
 }, { _id: false });
 
@@ -536,7 +545,10 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
     items: {
         productId: mongoose.Types.ObjectId;
         quantity: number;
-        priceType: 'retail' | 'bulk'
+        priceType: 'retail' | 'bulk';
+        unitPrice?: number;
+        totalPrice?: number;
+        dealId?: mongoose.Types.ObjectId;
     }[];
     deliveryInfo: {
         address: string,
@@ -553,6 +565,8 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
     const orderItems: IOrderItem[] = [];
     let subtotal = 0;
 
+    const dealAggregates = new Map<string, { deal: IDeal; quantity: number }>();
+
     for (const item of data.items) {
         const product = await Product.findById(item.productId);
         if (!product) {
@@ -563,100 +577,243 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             throw new Error(`Insufficient stock for ${product.name}`);
         }
 
-        // Add validation for pricing object
         if (!product.pricing) {
             throw new Error(`Product ${product.name} has no pricing information`);
         }
 
+        if (item.dealId) {
+            const dealDoc = await Deal.findById(item.dealId);
+            if (!dealDoc) {
+                throw new Error('Selected deal is no longer available');
+            }
+
+            if (!dealDoc.product.equals(item.productId)) {
+                throw new Error('Deal does not match the selected product');
+            }
+
+            const dealKey = dealDoc._id.toString();
+            const existing = dealAggregates.get(dealKey);
+            if (existing) {
+                existing.quantity += item.quantity;
+            } else {
+                dealAggregates.set(dealKey, { deal: dealDoc, quantity: item.quantity });
+            }
+        }
+
         let pricing;
-        
+
         if (item.priceType === 'retail') {
             pricing = product.pricing.retail;
-            
+
             if (!pricing) {
                 throw new Error(`Product ${product.name} does not have retail pricing`);
             }
         } else if (item.priceType === 'bulk') {
-            // Check if bulkTiers exist and have at least one tier
             if (!product.pricing.bulkTiers || product.pricing.bulkTiers.length === 0) {
                 throw new Error(`Product ${product.name} does not have bulk pricing available`);
             }
-            
-            // Use the first bulk tier (or you could find the appropriate tier based on quantity)
+
             pricing = product.pricing.bulkTiers[0];
         } else {
             throw new Error(`Invalid price type: ${item.priceType}. Must be 'retail' or 'bulk'`);
         }
 
-        // Check if price exists
         if (typeof pricing.price !== 'number' || pricing.price <= 0) {
             throw new Error(`Invalid price for ${product.name} ${item.priceType} pricing`);
         }
 
-        // Check if minQuantity exists and is valid
         if (typeof pricing.minQuantity !== 'number' || pricing.minQuantity <= 0) {
             throw new Error(`Invalid minQuantity for ${product.name} ${item.priceType} pricing`);
         }
 
-        const unitPrice = pricing.price / pricing.minQuantity;
-        const totalPrice = unitPrice * item.quantity;
-        
+        const overrideUnitPrice = typeof item.unitPrice === 'number' ? item.unitPrice : undefined;
+        const overrideTotalPrice = typeof item.totalPrice === 'number' ? item.totalPrice : undefined;
+
+        const computedUnitPrice = pricing.price / pricing.minQuantity;
+        let unitPrice = computedUnitPrice;
+        let totalPrice = unitPrice * item.quantity;
+
+        if (overrideUnitPrice !== undefined) {
+            unitPrice = overrideUnitPrice;
+            totalPrice = unitPrice * item.quantity;
+        }
+
+        if (overrideTotalPrice !== undefined) {
+            totalPrice = overrideTotalPrice;
+            if (overrideUnitPrice === undefined) {
+                unitPrice = item.quantity > 0 ? overrideTotalPrice / item.quantity : unitPrice;
+            }
+        }
+
         orderItems.push({
             product: item.productId,
             productName: product.name,
             quantity: item.quantity,
             priceType: item.priceType,
             unitPrice,
-            totalPrice
+            totalPrice,
+            ...(item.dealId ? { deal: item.dealId } : {})
         });
 
         subtotal += totalPrice;
     }
 
-    const deliveryFee = data.deliveryFee || 0;
-    const totalAmount = subtotal + deliveryFee;
+    for (const { deal, quantity } of dealAggregates.values()) {
+        const remainingUnits = Math.max(deal.maxUnits - deal.soldUnits, 0);
+        if (quantity > remainingUnits) {
+            throw new Error(`Deal "${deal.title}" is sold out`);
+        }
 
-    const order = new this({
-        user: data.userId,
-        items: orderItems,
-        subtotal,
-        deliveryFee,
-        totalAmount,
-        paymentMethod: data.paymentMethod,
-        deliveryInfo: data.deliveryInfo,
-        paymentReference: data.payementReference,
-        paymentProvider: ['paystack', 'flutterwave'].includes(data.paymentMethod)
-            ? data.paymentMethod as 'paystack'
-            : undefined,
-        payLaterInfo: data.paymentMethod === 'pay_later' ? {
-            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-            amountDue: totalAmount,
-            isPaid: false,
-            repaymentTransactions: []
-        } : undefined
-    });
+        const computedStatus = Deal.determineStatus({
+            startAt: deal.startAt,
+            endAt: deal.endAt,
+            soldUnits: deal.soldUnits,
+            maxUnits: deal.maxUnits,
+            status: deal.status
+        });
 
-    await order.save();
+        if (!['active', 'scheduled'].includes(computedStatus)) {
+            throw new Error(`Deal "${deal.title}" is not active`);
+        }
 
-    const handoverCodePlain = (order as any).handoverCodePlain;
-    if (handoverCodePlain) {
-        order.set('handoverCodePlain', handoverCodePlain, { strict: false });
-    }
+        if (computedStatus === 'scheduled' && deal.startAt && deal.startAt > new Date()) {
+            throw new Error(`Deal "${deal.title}" has not started yet`);
+        }
 
-    // Process wallet payment if that's the payment method
-    if (data.paymentMethod === 'wallet') {
-        await order.processWalletPayment();
-    }
-
-    // Update product stock
-    for (const item of data.items) {
-        const product = await Product.findById(item.productId);
-        if (product) {
-            await product.updateStock(item.quantity, 'decrease');
+        if (deal.perUserLimit) {
+            const existingRedemptions = await DealRedemption.aggregate([
+                { $match: { deal: deal._id, user: data.userId } },
+                { $group: { _id: null, total: { $sum: '$quantity' } } }
+            ]);
+            const alreadyRedeemed = existingRedemptions[0]?.total || 0;
+            if (alreadyRedeemed + quantity > deal.perUserLimit) {
+                throw new Error(`Deal "${deal.title}" limit reached`);
+            }
         }
     }
 
-    return order;
+    const deliveryFee = data.deliveryFee || 0;
+    const totalAmount = subtotal + deliveryFee;
+
+    const incrementedDeals: Array<{ dealId: mongoose.Types.ObjectId; quantity: number }> = [];
+    let createdRedemptionIds: mongoose.Types.ObjectId[] = [];
+
+    try {
+        for (const entry of dealAggregates.values()) {
+            const updatedDeal = await Deal.findOneAndUpdate(
+                {
+                    _id: entry.deal._id,
+                    soldUnits: { $lte: entry.deal.maxUnits - entry.quantity }
+                },
+                {
+                    $inc: { soldUnits: entry.quantity }
+                },
+                { new: true }
+            );
+
+            if (!updatedDeal) {
+                throw new Error(`Deal "${entry.deal.title}" is no longer available`);
+            }
+
+            const nextStatus = Deal.determineStatus({
+                startAt: updatedDeal.startAt,
+                endAt: updatedDeal.endAt,
+                soldUnits: updatedDeal.soldUnits,
+                maxUnits: updatedDeal.maxUnits,
+                status: updatedDeal.status
+            });
+
+            if (nextStatus !== updatedDeal.status) {
+                updatedDeal.status = nextStatus;
+                await updatedDeal.save();
+            }
+
+            entry.deal = updatedDeal;
+            incrementedDeals.push({ dealId: updatedDeal._id, quantity: entry.quantity });
+        }
+
+        const order = new this({
+            user: data.userId,
+            items: orderItems,
+            subtotal,
+            deliveryFee,
+            totalAmount,
+            paymentMethod: data.paymentMethod,
+            deliveryInfo: data.deliveryInfo,
+            paymentReference: data.payementReference,
+            paymentProvider: ['paystack', 'flutterwave'].includes(data.paymentMethod)
+                ? data.paymentMethod as 'paystack'
+                : undefined,
+            payLaterInfo: data.paymentMethod === 'pay_later' ? {
+                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                amountDue: totalAmount,
+                isPaid: false,
+                repaymentTransactions: []
+            } : undefined
+        });
+
+        await order.save();
+
+        const handoverCodePlain = (order as any).handoverCodePlain;
+        if (handoverCodePlain) {
+            order.set('handoverCodePlain', handoverCodePlain, { strict: false });
+        }
+
+        if (data.paymentMethod === 'wallet') {
+            await order.processWalletPayment();
+        }
+
+        if (dealAggregates.size) {
+            const redemptionDocs = Array.from(dealAggregates.values()).map((entry) => ({
+                deal: entry.deal._id,
+                user: data.userId,
+                order: order._id,
+                quantity: entry.quantity
+            }));
+            const insertedRedemptions = await DealRedemption.insertMany(redemptionDocs);
+            createdRedemptionIds = insertedRedemptions.map((doc) => doc._id as mongoose.Types.ObjectId);
+        }
+
+        for (const item of data.items) {
+            const product = await Product.findById(item.productId);
+            if (product) {
+                await product.updateStock(item.quantity, 'decrease');
+            }
+        }
+
+        return order;
+    } catch (error) {
+        if (createdRedemptionIds.length) {
+            await DealRedemption.deleteMany({ _id: { $in: createdRedemptionIds } });
+        }
+
+        if (incrementedDeals.length) {
+            for (const entry of incrementedDeals) {
+                const rolledDeal = await Deal.findOneAndUpdate(
+                    { _id: entry.dealId },
+                    { $inc: { soldUnits: -entry.quantity } },
+                    { new: true }
+                );
+
+                if (rolledDeal) {
+                    const nextStatus = Deal.determineStatus({
+                        startAt: rolledDeal.startAt,
+                        endAt: rolledDeal.endAt,
+                        soldUnits: rolledDeal.soldUnits,
+                        maxUnits: rolledDeal.maxUnits,
+                        status: rolledDeal.status
+                    });
+
+                    if (nextStatus !== rolledDeal.status) {
+                        rolledDeal.status = nextStatus;
+                        await rolledDeal.save();
+                    }
+                }
+            }
+        }
+
+        throw error;
+    }
 };
 
 OrderSchema.methods.processWalletPayment = async function() {

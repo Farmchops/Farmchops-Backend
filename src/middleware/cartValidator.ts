@@ -53,7 +53,12 @@ export const addToCartValidation = [
   body('tierName')
     .optional()
     .isString()
-    .withMessage('Tier name must be a string')
+    .withMessage('Tier name must be a string'),
+
+  body('dealId')
+    .optional({ checkFalsy: true })
+    .isMongoId()
+    .withMessage('Deal ID must be a valid Mongo ID')
 ];
 
 // Update cart - productId in BODY (not params!)
@@ -75,7 +80,12 @@ export const updateCartValidation = [
   body('tierName')
     .optional()
     .isString()
-    .withMessage('Tier name must be a string')
+    .withMessage('Tier name must be a string'),
+
+  body('dealId')
+    .optional({ checkFalsy: true })
+    .isMongoId()
+    .withMessage('Deal ID must be a valid Mongo ID')
 ];
 
 // Remove from cart - productId in PARAMS
@@ -91,5 +101,10 @@ export const removeFromCartValidation = [
   body('tierName')
     .optional()
     .isString()
-    .withMessage('Tier name must be a string')
+    .withMessage('Tier name must be a string'),
+
+  body('dealId')
+    .optional({ checkFalsy: true })
+    .isMongoId()
+    .withMessage('Deal ID must be a valid Mongo ID')
 ];

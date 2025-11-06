@@ -90,7 +90,11 @@ async function mergeSessionCartIntoUserCart(
 ): Promise<ICart> {
   for (const sessionItem of sessionCart.items) {
     const existingItemIndex = userCart.items.findIndex(
-      item => item.productId === sessionItem.productId && item.priceType === sessionItem.priceType && item.tierName === sessionItem.tierName
+      item =>
+        item.productId === sessionItem.productId &&
+        item.priceType === sessionItem.priceType &&
+        item.tierName === sessionItem.tierName &&
+        item.dealId === sessionItem.dealId
     );
 
     if (existingItemIndex > -1 && userCart.items[existingItemIndex]) {

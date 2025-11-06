@@ -36,8 +36,11 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
     unit,
     priceType,
     minQuantity,
-    tierName
+    tierName,
+    dealId
   } = req.body;
+
+  const normalizedDealId = dealId ? String(dealId) : undefined;
 
   try {
     // Still validate product exists and is available
@@ -74,7 +77,11 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
 
     // Use the tier information sent from frontend, don't recalculate
     const existingIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType && item.tierName === tierName
+      (item) =>
+        item.productId === productId &&
+        item.priceType === priceType &&
+        item.tierName === tierName &&
+        item.dealId === normalizedDealId
     );
 
     if (existingIndex > -1 && cart.items[existingIndex]) {
@@ -98,6 +105,7 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
         priceType,
         minQuantity,
         tierName,
+        dealId: normalizedDealId,
       });
     }
 
@@ -162,8 +170,13 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<R
   try {
     const cart = await getCart(req);
 
+    const normalizedDealId = req.body.dealId ? String(req.body.dealId) : undefined;
     const itemIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType && item.tierName === (req.body.tierName || undefined)
+      (item) =>
+        item.productId === productId &&
+        item.priceType === priceType &&
+        item.tierName === (req.body.tierName || undefined) &&
+        item.dealId === normalizedDealId
     );
 
     if (itemIndex === -1) {
@@ -262,8 +275,13 @@ export const removeCartItem = async (req: AuthRequest, res: Response): Promise<R
   try {
     const cart = await getCart(req);
 
+    const normalizedDealId = req.body.dealId ? String(req.body.dealId) : undefined;
     const itemIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType && item.tierName === (req.body.tierName || undefined)
+      (item) =>
+        item.productId === productId &&
+        item.priceType === priceType &&
+        item.tierName === (req.body.tierName || undefined) &&
+        item.dealId === normalizedDealId
     );
 
     if (itemIndex === -1) {

@@ -135,7 +135,10 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     const orderItems = cart.items.map((item) => ({
       productId: new mongoose.Types.ObjectId(item.productId),
       quantity: item.quantity,
-      priceType: item.priceType as 'retail' | 'bulk'
+      priceType: item.priceType as 'retail' | 'bulk',
+      unitPrice: typeof item.price === 'number' ? item.price : undefined,
+      totalPrice: typeof item.price === 'number' ? item.price * item.quantity : undefined,
+      dealId: item.dealId ? new mongoose.Types.ObjectId(item.dealId) : undefined
     }));
 
     // Generate payment reference for Paystack

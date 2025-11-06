@@ -10,6 +10,7 @@ export interface ICartItem {
   priceType: 'retail' | 'bulk';
   minQuantity: number;
   tierName?: string;
+  dealId?: string;
 }
 
 export interface ICart extends Document {
@@ -60,6 +61,10 @@ const CartItemSchema = new Schema<ICartItem>({
     min: 1
   },
   tierName: {
+    type: String,
+    required: false
+  },
+  dealId: {
     type: String,
     required: false
   }
