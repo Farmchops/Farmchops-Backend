@@ -591,7 +591,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
                 throw new Error('Deal does not match the selected product');
             }
 
-            const dealKey = dealDoc._id.toString();
+            const dealKey = (dealDoc._id as mongoose.Types.ObjectId).toString();
             const existing = dealAggregates.get(dealKey);
             if (existing) {
                 existing.quantity += item.quantity;
@@ -729,7 +729,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             }
 
             entry.deal = updatedDeal;
-            incrementedDeals.push({ dealId: updatedDeal._id, quantity: entry.quantity });
+            incrementedDeals.push({ dealId: updatedDeal._id as mongoose.Types.ObjectId, quantity: entry.quantity });
         }
 
         const order = new this({
