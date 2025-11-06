@@ -5,30 +5,34 @@ const decorateDeal = async (deal: any) => {
   await deal.populate({ path: 'product', select: 'name images pricing stock slug' });
 
   // Ensure the returned product object includes a reference back to this deal.
-  // This makes it easy for clients that receive the populated product to
-  // include the deal id when adding the product to cart.
-  let productObj: any;
-  try {
-    productObj = deal.product && typeof deal.product.toObject === 'function' ? deal.product.toObject() : deal.product;
-  } catch (e) {
-    productObj = deal.product;
-  }
+  let productObj: any = null;
+  
+  if (deal.product) {
+    try {
+      // Always convert to plain object to ensure modifications work
+      productObj = typeof deal.product.toObject === 'function' 
+        ? deal.product.toObject() 
+        : { ...deal.product };
+    } catch (e) {
+      productObj = deal.product ? { ...deal.product } : null;
+    }
 
-  if (productObj) {
-    // Add both common keys used by clients as strings to match how cart stores dealId
-    // (cart and session compare dealId as strings).
-    const dealIdStr = String(deal._id);
-    productObj.dealId = dealIdStr;
-    productObj.deal = dealIdStr;
+    if (productObj) {
+      // Add dealId as string to match cart storage format
+      const dealIdStr = String(deal._id);
+      productObj.dealId = dealIdStr;
+      productObj.deal = dealIdStr;
+    }
   }
 
   const remainingUnits = Math.max(deal.maxUnits - deal.soldUnits, 0);
   const now = Date.now();
   const endAtValue = deal.endAt instanceof Date ? deal.endAt : undefined;
   const countdownSeconds = endAtValue ? Math.max(Math.floor((endAtValue.getTime() - now) / 1000), 0) : null;
+  
   return {
     deal: {
-      dealId: deal._id,
+      dealId: String(deal._id), // Ensure this is always a string
       title: deal.title,
       description: deal.description,
       heroImage: deal.heroImage,
@@ -80,6 +84,15 @@ export const getActiveDeal = async (_req: Request, res: Response) => {
       return decorateDeal(deal);
     }));
 
+    // Log for debugging (remove in production)
+    if (summaries[0]?.deal?.product) {
+      console.log('Active deal product:', {
+        productId: summaries[0].deal.product._id,
+        dealId: summaries[0].deal.product.dealId,
+        deal: summaries[0].deal.product.deal
+      });
+    }
+
     return res.json({
       success: true,
       data: {
@@ -89,7 +102,11 @@ export const getActiveDeal = async (_req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to fetch active deal' });
+    console.error('Error in getActiveDeal:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Failed to fetch active deal' 
+    });
   }
 };
 
@@ -117,8 +134,16 @@ export const getUpcomingDeals = async (_req: Request, res: Response) => {
       }
       return decorateDeal(deal);
     }));
-    return res.json({ success: true, data: { deals: summaries } });
+    
+    return res.json({ 
+      success: true, 
+      data: { deals: summaries } 
+    });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Failed to fetch upcoming deals' });
+    console.error('Error in getUpcomingDeals:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Failed to fetch upcoming deals' 
+    });
   }
 };

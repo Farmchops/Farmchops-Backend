@@ -125,7 +125,10 @@ export interface IOrderModel extends Model<IOrder> {
         items: {
             productId: mongoose.Types.ObjectId;
             quantity: number;
-            priceType: 'retail' | 'bulk'
+            priceType: 'retail' | 'bulk';
+            unitPrice?: number;
+            totalPrice?: number;
+            dealId?: mongoose.Types.ObjectId;
         }[];
         deliveryInfo: {
             address: string;
@@ -136,7 +139,7 @@ export interface IOrderModel extends Model<IOrder> {
         paymentMethod: 'wallet' | 'pay_later' | 'paystack';
         deliveryFee?: number;
         payementReference?: string;
-    }): Promise<IOrder>;
+    }, session?: mongoose.ClientSession): Promise<IOrder>;
 }
 
 const OrderItemSchema = new Schema({
@@ -569,7 +572,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
     paymentMethod: 'wallet' | 'pay_later' | 'paystack';
     deliveryFee?: number;
     payementReference?: string
-}) {
+}, session?: mongoose.ClientSession) {
     const Product = mongoose.model('Product');
 
     const orderItems: IOrderItem[] = [];
@@ -578,7 +581,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
     const dealAggregates = new Map<string, { deal: IDeal; quantity: number }>();
 
     for (const item of data.items) {
-        const product = await Product.findById(item.productId);
+        const product = session ? await Product.findById(item.productId).session(session) : await Product.findById(item.productId);
         if (!product) {
             throw new Error(`Product not found: ${item.productId}`);
         }
@@ -592,7 +595,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         }
 
         if (item.dealId) {
-            const dealDoc = await Deal.findById(item.dealId);
+            const dealDoc = session ? await Deal.findById(item.dealId).session(session) : await Deal.findById(item.dealId);
             if (!dealDoc) {
                 throw new Error('Selected deal is no longer available');
             }
@@ -718,7 +721,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
                 {
                     $inc: { soldUnits: entry.quantity }
                 },
-                { new: true }
+                { new: true, session }
             );
 
             if (!updatedDeal) {
@@ -762,7 +765,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             } : undefined
         });
 
-        await order.save();
+            await order.save(session ? { session } as any : undefined);
 
         const handoverCodePlain = (order as any).handoverCodePlain;
         if (handoverCodePlain) {
@@ -780,12 +783,12 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
                 order: order._id,
                 quantity: entry.quantity
             }));
-            const insertedRedemptions = await DealRedemption.insertMany(redemptionDocs);
+            const insertedRedemptions = session ? await DealRedemption.insertMany(redemptionDocs, { session }) : await DealRedemption.insertMany(redemptionDocs);
             createdRedemptionIds = insertedRedemptions.map((doc) => doc._id as mongoose.Types.ObjectId);
         }
 
         for (const item of data.items) {
-            const product = await Product.findById(item.productId);
+            const product = session ? await Product.findById(item.productId).session(session) : await Product.findById(item.productId);
             if (product) {
                 await product.updateStock(item.quantity, 'decrease');
             }

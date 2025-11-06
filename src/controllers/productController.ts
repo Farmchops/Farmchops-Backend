@@ -1,6 +1,7 @@
 // src/controllers/productController.ts
 import { Request, Response } from 'express';
 import { Product, IProduct } from '../models/Product';
+import { Deal } from '../models/Deal';
 import { Category } from '../models/Category';
 import { validationResult } from 'express-validator';
 import { deleteMultipleImages } from '../utils/imageHelper';
@@ -107,6 +108,26 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       .limit(limitNum)
       .lean();
 
+    // Attach active deal id to each product if available (helps clients include dealId when adding to cart)
+    const now = new Date();
+    await Promise.all(products.map(async (product: any) => {
+      try {
+        const activeDeal = await Deal.findOne({
+          product: product._id,
+          status: { $in: ['active'] },
+          startAt: { $lte: now },
+          $or: [ { endAt: { $exists: false } }, { endAt: null }, { endAt: { $gte: now } } ]
+        }).sort({ startAt: -1, createdAt: -1 });
+
+        if (activeDeal) {
+          product.dealId = String(activeDeal._id);
+          product.deal = String(activeDeal._id);
+        }
+      } catch (e) {
+        console.error('Error attaching active deal to product list item:', e);
+      }
+    }));
+
     // Get total count for pagination
     const totalProducts = await Product.countDocuments(filter);
     const totalPages = Math.ceil(totalProducts / limitNum);
@@ -134,7 +155,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 };
 
 // GET /api/products/:slug - Get single product
-export const getProductBySlug = async (req: Request, res: Response): Promise<void> => {
+export const getProductBySlug = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { slug } = req.params;
 
@@ -144,11 +165,10 @@ export const getProductBySlug = async (req: Request, res: Response): Promise<voi
     }).populate('category', 'name slug description');
 
     if (!product) {
-      res.status(404).json({
+      return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
-      return;
     }
 
     // Increment view count (don't await to avoid slowing response)
@@ -157,13 +177,37 @@ export const getProductBySlug = async (req: Request, res: Response): Promise<voi
       { $inc: { 'stats.viewCount': 1 } }
     ).catch(err => console.error('Failed to increment view count:', err));
 
-    res.json({
+    // Attach active deal id if product is part of an active deal
+    try {
+      const now2 = new Date();
+      const activeDeal = await Deal.findOne({
+        product: product._id,
+        status: { $in: ['active'] },
+        startAt: { $lte: now2 },
+        $or: [ { endAt: { $exists: false } }, { endAt: null }, { endAt: { $gte: now2 } } ]
+      }).sort({ startAt: -1, createdAt: -1 });
+
+      if (activeDeal) {
+        // product is a mongoose document - convert to object for mutation consistency
+        const pObj: any = typeof product.toObject === 'function' ? product.toObject() : product;
+        pObj.dealId = String(activeDeal._id);
+        pObj.deal = String(activeDeal._id);
+        return res.json({
+          success: true,
+          data: pObj
+        });
+      }
+    } catch (e) {
+      console.error('Error attaching active deal to product by slug:', e);
+    }
+
+    return res.json({
       success: true,
       data: product
     });
   } catch (error) {
     console.error('Get product by slug error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Failed to fetch product'
     });
