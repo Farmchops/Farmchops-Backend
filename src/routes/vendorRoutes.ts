@@ -16,7 +16,11 @@ const router = Router();
 // POST /api/vendors - create vendor application (public)
 // Public endpoint so vendors can apply without creating an account. Server will
 // not store sensitive NIN data (do not include NIN in the schema).
+// Accept both application/json and multipart/form-data (from browser forms).
+// If the frontend posts a file, it should use the separate /:id/doc endpoint.
 router.post('/',
+  // Parse multipart form fields if the client used form-data (no files expected here)
+  uploadVendorDocMiddleware.none(),
   body('firstName').isString().notEmpty(),
   body('address').isString().notEmpty(),
   // NIN is required by frontend but will NOT be stored in DB. We validate format here.
