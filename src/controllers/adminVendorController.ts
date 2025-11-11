@@ -188,7 +188,9 @@ export const getVendorDetailAdmin = async (req: Request, res: Response) => {
     const requests = await VendorRequest.find({ vendor: vendor._id }).sort({ createdAt: -1 }).lean();
     const notes = await VendorNote.find({ vendor: vendor._id }).sort({ createdAt: -1 }).lean();
 
-    return res.status(200).json({ success: true, vendor, contacts, requests, notes });
+  // Return both top-level fields and a `data` object for frontends that
+  // expect either shape (some clients expect `data.vendor`, others expect `vendor`).
+  return res.status(200).json({ success: true, vendor, contacts, requests, notes, data: { vendor, contacts, requests, notes } });
   } catch (err) {
     console.error('getVendorDetailAdmin error:', err);
     return res.status(500).json({ success: false, message: 'Failed to get vendor detail' });
