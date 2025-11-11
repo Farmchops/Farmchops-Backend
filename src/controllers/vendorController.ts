@@ -9,7 +9,10 @@ export const createVendor = async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const arr = errors.array();
+      // Return a concise message plus the array for debugging
+      const message = arr.map(e => e.msg).join('; ');
+      return res.status(400).json({ success: false, message, errors: arr });
     }
     const { firstName, lastName, gender, address, nationality, items, nin } = req.body;
 
@@ -17,14 +20,8 @@ export const createVendor = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'First name and address are required' });
     }
 
-    // Validate NIN from request but DO NOT persist it. The frontend requires the field,
-    // we validate it here and then drop it. This ensures data quality while respecting
-    // the policy of not storing plaintext NIN in the DB.
-    if (!nin || typeof nin !== 'string') {
-      return res.status(400).json({ success: false, message: 'NIN is required' });
-    }
-
-    const ninTrimmed = nin.trim();
+    // NIN validated by route validators; normalize it for any server-side checks.
+    const ninTrimmed = typeof nin === 'string' ? nin.trim() : '';
     const ninPattern = /^[A-Za-z0-9]{6,20}$/; // basic alphanumeric check and length
     if (!ninPattern.test(ninTrimmed)) {
       return res.status(400).json({ success: false, message: 'Invalid NIN format' });

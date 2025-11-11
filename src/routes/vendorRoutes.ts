@@ -24,7 +24,12 @@ router.post('/',
   body('firstName').isString().notEmpty(),
   body('address').isString().notEmpty(),
   // NIN is required by frontend but will NOT be stored in DB. We validate format here.
-  body('nin').isString().isLength({ min: 6, max: 20 }).withMessage('Invalid NIN'),
+  // Accept only alphanumeric NIN of length 6-20. Use bail() so we return a single clear error.
+  body('nin')
+    .exists().withMessage('NIN is required').bail()
+    .isString().withMessage('Invalid NIN')
+    .trim()
+    .matches(/^[A-Za-z0-9]{6,20}$/).withMessage('Invalid NIN format'),
   createVendor
 );
 

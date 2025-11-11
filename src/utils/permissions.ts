@@ -43,6 +43,8 @@ export const PERMISSIONS = {
   
   // Admin management (super admin only)
   MANAGE_ADMINS: 'manage_admins',
+  // Vendor management (admins who can manage vendor accounts)
+  MANAGE_VENDORS: 'manage_vendors',
 
   // Order workflow permissions
   ORDERS_PROCESSING_START: 'orders.processing.start',
@@ -136,7 +138,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.MANAGE_CATEGORIES,
     PERMISSIONS.VIEW_ORDERS,
     PERMISSIONS.ORDERS_WORKFLOW_VIEW,
-    PERMISSIONS.PROMO_DEALS_MANAGE
+    PERMISSIONS.PROMO_DEALS_MANAGE,
+    PERMISSIONS.MANAGE_VENDORS
   ],
 
   [ROLES.RIDER]: [
