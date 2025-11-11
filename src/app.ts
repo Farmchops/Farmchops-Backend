@@ -85,7 +85,7 @@ app.use('/api/admin', adminOrderRoutes);
 app.use('/api/rider', riderOrderRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/vendors', vendorRoutes);
-app.use('/admin/vendors', adminVendorRoutes);
+app.use('/api/admin/vendors', adminVendorRoutes);
 // app.use('/api/places', placesRoutes);
 
 
