@@ -165,7 +165,8 @@ export const listVendorsAdmin = async (req: Request, res: Response) => {
     const vendors = await Vendor.find(filter).sort(sort).skip(skip).limit(perPageNum).lean();
     const total = await Vendor.countDocuments(filter);
 
-    return res.status(200).json({ success: true, vendors, meta: { page: pageNum, perPage: perPageNum, total } });
+  // Return both `vendors` and `data` for backward compatibility with frontends
+  return res.status(200).json({ success: true, vendors, data: vendors, meta: { page: pageNum, perPage: perPageNum, total } });
   } catch (err) {
     console.error('listVendorsAdmin error:', err);
     return res.status(500).json({ success: false, message: 'Failed to list vendors' });
