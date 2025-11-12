@@ -17,7 +17,8 @@ export interface IVendor extends Document {
   email?: string;
   items: IVendorItem[];
   user?: mongoose.Types.ObjectId;
-  status: 'pending' | 'approved' | 'rejected';
+  // Extended status values to include admin workflow statuses
+  status: 'pending' | 'approved' | 'rejected' | 'partnered' | 'needs_info' | 'contacted' | 'declined';
   adminNotes?: string;
   // ID document metadata (if vendor uploaded an ID document)
   idDoc?: {
@@ -43,10 +44,11 @@ const VendorSchema = new Schema<IVendor>({
   address: { type: String, required: true, trim: true },
   nationality: { type: String, trim: true },
   phone: { type: String, trim: true },
-  email: { type: String, trim: true },
+  email: { type: String, trim: true, lowercase: true },
   items: { type: [VendorItemSchema], default: [] },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  // Allow both owner-facing and admin workflow statuses
+  status: { type: String, enum: ['pending', 'approved', 'rejected', 'partnered', 'needs_info', 'contacted', 'declined'], default: 'pending' },
   adminNotes: { type: String, trim: true },
   idDoc: {
     url: { type: String, trim: true },

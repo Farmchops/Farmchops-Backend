@@ -36,7 +36,7 @@ export const createVendor = async (req: Request, res: Response) => {
       address: String(address).trim(),
       nationality,
       phone: phone ? String(phone).trim() : undefined,
-      email: email ? String(email).trim() : undefined,
+      email: email ? String(email).trim().toLowerCase() : undefined,
       items: Array.isArray(items) ? items : []
     });
 
@@ -117,7 +117,10 @@ export const updateVendor = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: 'Cannot change status or admin notes' });
     }
 
-    const updated = await Vendor.findByIdAndUpdate(id, updates, { new: true });
+  // Normalize email if present
+  if (updates.email) updates.email = String(updates.email).trim().toLowerCase();
+
+  const updated = await Vendor.findByIdAndUpdate(id, updates, { new: true });
     return res.json({ success: true, data: updated });
   } catch (err) {
     console.error('updateVendor error:', err);
