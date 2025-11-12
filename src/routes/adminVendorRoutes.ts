@@ -38,4 +38,7 @@ router.get('/', adminCtrl.listVendorsAdmin);
 // GET /admin/vendors/:id
 router.get('/:id', adminCtrl.getVendorDetailAdmin);
 
+// DELETE /admin/vendors/:id
+router.delete('/:id', adminCtrl.deleteVendorAdmin);
+
 export default router;

@@ -22,6 +22,8 @@ router.post('/',
   // Parse multipart form fields if the client used form-data (no files expected here)
   uploadVendorDocMiddleware.none(),
   body('firstName').isString().notEmpty(),
+  body('phone').isString().notEmpty().withMessage('Phone is required'),
+  body('email').isEmail().withMessage('Valid email is required'),
   body('address').isString().notEmpty(),
   // NIN is required by frontend but will NOT be stored in DB. We validate format here.
   // Accept only alphanumeric NIN of length 6-20. Use bail() so we return a single clear error.

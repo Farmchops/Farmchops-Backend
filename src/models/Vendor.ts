@@ -13,6 +13,8 @@ export interface IVendor extends Document {
   gender?: 'male' | 'female' | 'other';
   address: string;
   nationality?: string;
+  phone?: string;
+  email?: string;
   items: IVendorItem[];
   user?: mongoose.Types.ObjectId;
   status: 'pending' | 'approved' | 'rejected';
@@ -40,6 +42,8 @@ const VendorSchema = new Schema<IVendor>({
   gender: { type: String, enum: ['male', 'female', 'other'] },
   address: { type: String, required: true, trim: true },
   nationality: { type: String, trim: true },
+  phone: { type: String, trim: true },
+  email: { type: String, trim: true },
   items: { type: [VendorItemSchema], default: [] },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },

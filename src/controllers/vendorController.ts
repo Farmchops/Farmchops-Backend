@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Vendor from '../models/Vendor';
 import { validationResult } from 'express-validator';
 
-const USER_UPDATABLE = ['firstName', 'lastName', 'gender', 'address', 'nationality', 'items'];
+const USER_UPDATABLE = ['firstName', 'lastName', 'gender', 'address', 'nationality', 'items', 'phone', 'email'];
 
 export const createVendor = async (req: Request, res: Response) => {
   try {
@@ -14,7 +14,7 @@ export const createVendor = async (req: Request, res: Response) => {
       const message = arr.map(e => e.msg).join('; ');
       return res.status(400).json({ success: false, message, errors: arr });
     }
-    const { firstName, lastName, gender, address, nationality, items, nin } = req.body;
+  const { firstName, lastName, gender, address, nationality, items, nin, phone, email } = req.body;
 
     if (!firstName || !address) {
       return res.status(400).json({ success: false, message: 'First name and address are required' });
@@ -35,6 +35,8 @@ export const createVendor = async (req: Request, res: Response) => {
       gender,
       address: String(address).trim(),
       nationality,
+      phone: phone ? String(phone).trim() : undefined,
+      email: email ? String(email).trim() : undefined,
       items: Array.isArray(items) ? items : []
     });
 

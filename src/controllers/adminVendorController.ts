@@ -197,11 +197,43 @@ export const getVendorDetailAdmin = async (req: Request, res: Response) => {
   }
 };
 
+// DELETE /admin/vendors/:id
+export const deleteVendorAdmin = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) return res.status(400).json({ success: false, message: 'Invalid id' });
+
+    const admin = (req as any).user;
+    if (!admin || !admin._id) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+    const vendor = await Vendor.findById(id);
+    if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+
+    // Remove related admin records for cleanliness
+    await VendorAudit.deleteMany({ vendor: vendor._id });
+    await VendorContact.deleteMany({ vendor: vendor._id });
+    await VendorRequest.deleteMany({ vendor: vendor._id });
+    await VendorNote.deleteMany({ vendor: vendor._id });
+
+    await Vendor.findByIdAndDelete(id);
+
+    await VendorAudit.create({ vendor: vendor._id, admin: admin._id, action: 'vendor_deleted', payload: { vendorId: vendor._id } });
+
+    return res.status(200).json({ success: true, message: 'Vendor deleted' });
+  } catch (err) {
+    console.error('deleteVendorAdmin error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to delete vendor' });
+  }
+};
+
 export default {
   changeVendorStatusAdmin,
   postVendorContact,
   postVendorRequestInfo,
   postVendorNote,
   listVendorsAdmin,
-  getVendorDetailAdmin
+  getVendorDetailAdmin,
+  // Delete vendor (admin)
+  deleteVendorAdmin
 };
+
