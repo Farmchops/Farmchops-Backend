@@ -4,6 +4,8 @@ import { Order, IOrder, OrderStatus, OrderStageOwner } from '../models/Order';
 import { IUser } from '../models/User';
 import User from '../models/User';
 import { hasPermission, PERMISSIONS } from '../utils/permissions';
+import { OrderAudit } from '../models/OrderAdminModels';
+import eventBus from './eventBus';
 
 export type WorkflowAction =
   | 'mark-processing'
@@ -34,6 +36,8 @@ interface ActionDefinition {
   requiredPermission: string;
   nextOwner: OrderStageOwner;
   guard?: (order: IOrder) => boolean;
+  ownerRoles?: string[]; // admin roles that may perform this action even without permission
+  requires?: Record<string, boolean | string>;
 }
 
 interface PerformActionOptions {
@@ -82,6 +86,8 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'processing',
     requiredPermission: PERMISSIONS.ORDERS_PROCESSING_START,
     nextOwner: NEXT_STAGE_OWNER.processing,
+    ownerRoles: ['operations','processing'],
+    requires: { note: false },
     guard: (order) => order.paymentStatus === 'paid'
   },
   'mark-ready-for-dispatch': {
@@ -89,6 +95,8 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'ready_for_dispatch',
     requiredPermission: PERMISSIONS.ORDERS_PROCESSING_COMPLETE,
     nextOwner: NEXT_STAGE_OWNER.ready_for_dispatch,
+    ownerRoles: ['processing','packaging','logistics'],
+    requires: { note: true },
     guard: (order) => order.paymentStatus === 'paid'
   },
   'assign-rider': {
@@ -96,6 +104,8 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'awaiting_pickup',
     requiredPermission: PERMISSIONS.ORDERS_DISPATCH_ASSIGN,
     nextOwner: NEXT_STAGE_OWNER.awaiting_pickup,
+    ownerRoles: ['logistics'],
+    requires: { riderId: true, note: false },
     guard: (order) => order.handoverCodeActive !== false && order.paymentStatus === 'paid'
   },
   'confirm-pickup': {
@@ -103,6 +113,8 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'en_route',
     requiredPermission: PERMISSIONS.ORDERS_DISPATCH_HANDOVER,
     nextOwner: NEXT_STAGE_OWNER.en_route,
+    ownerRoles: ['logistics','rider'],
+    requires: { note: false, proof: false },
     guard: (order) => Boolean(order.assignedRider?.rider) && order.paymentStatus === 'paid'
   },
   'confirm-delivery': {
@@ -110,32 +122,40 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'delivered',
     requiredPermission: PERMISSIONS.ORDERS_DELIVERY_CONFIRM,
     nextOwner: NEXT_STAGE_OWNER.delivered,
+    ownerRoles: ['logistics','rider'],
+    requires: { handoverCode: true, proof: false },
     guard: (order) => Boolean(order.assignedRider?.rider && order.handoverCodeActive)
   },
   'close-order': {
     from: ['delivered'],
     to: 'completed',
     requiredPermission: PERMISSIONS.ORDERS_DELIVERY_CLOSE,
-    nextOwner: NEXT_STAGE_OWNER.completed
+    nextOwner: NEXT_STAGE_OWNER.completed,
+    ownerRoles: ['support']
   },
   'fail-delivery': {
     from: ['en_route'],
     to: 'failed_delivery',
     requiredPermission: PERMISSIONS.ORDERS_DISPATCH_FAIL,
     nextOwner: NEXT_STAGE_OWNER.failed_delivery,
+    ownerRoles: ['logistics','support','supervisor'],
+    requires: { reason: true, note: false },
     guard: (order) => Boolean(order.assignedRider?.rider)
   },
   'return-to-dispatch': {
     from: ['failed_delivery'],
     to: 'ready_for_dispatch',
     requiredPermission: PERMISSIONS.ORDERS_DISPATCH_RETURN,
-    nextOwner: NEXT_STAGE_OWNER.ready_for_dispatch
+    nextOwner: NEXT_STAGE_OWNER.ready_for_dispatch,
+    ownerRoles: ['logistics']
   },
   'cancel-order': {
     from: ['pending_payment', 'ready_for_processing', 'processing', 'ready_for_dispatch', 'awaiting_pickup'],
     to: 'cancelled',
     requiredPermission: PERMISSIONS.ORDERS_OVERRIDE_CANCEL,
-    nextOwner: NEXT_STAGE_OWNER.cancelled
+    nextOwner: NEXT_STAGE_OWNER.cancelled,
+    ownerRoles: ['support','supervisor'],
+    requires: { reason: true }
   }
 };
 
@@ -205,7 +225,11 @@ export const performAction = async ({ orderId, action, payload = {}, user }: Per
   }
 
   const userPermissions = user.permissions || [];
-  if (!hasPermission(userPermissions, definition.requiredPermission)) {
+  // Authorization: allow if user has explicit permission OR user's adminRole is in ownerRoles OR the user is assigned to this order
+  const userIsAssigned = order.assignedRider && order.assignedRider.rider && (order.assignedRider.rider as mongoose.Types.ObjectId).equals(user._id as mongoose.Types.ObjectId);
+  const userAdminRole = (user as any).adminRole as string | undefined;
+  const allowedByRole = definition.ownerRoles && userAdminRole ? definition.ownerRoles.includes(userAdminRole) : false;
+  if (!hasPermission(userPermissions, definition.requiredPermission) && !allowedByRole && !userIsAssigned) {
     throw new OrderWorkflowError('Permission denied', 403, 'FORBIDDEN');
   }
 
@@ -381,6 +405,38 @@ export const performAction = async ({ orderId, action, payload = {}, user }: Per
 
   await order.populate({ path: 'assignedRider.rider', select: 'firstName lastName phone adminRole isActive' });
 
+  // Record an audit entry for this action
+  try {
+    await OrderAudit.create({
+      order: order._id,
+      admin: actorId,
+      action,
+      note,
+      payload: metadata || {},
+      previousStatus
+    });
+  } catch (err) {
+    // Do not block the main flow on audit write failures; log instead
+    // eslint-disable-next-line no-console
+    console.error('Failed to write order audit', err);
+  }
+
+  // Emit an intra-process event for real-time handling (socket/queue bridges can listen)
+  try {
+    eventBus.emit('order.status_changed', {
+      orderId: order._id,
+      previousStatus,
+      newStatus: order.orderStatus,
+      action,
+      metadata,
+      note
+    });
+  } catch (err) {
+    // Non-fatal: log and continue
+    // eslint-disable-next-line no-console
+    console.error('Failed to emit order event', err);
+  }
+
   return {
     order: sanitizeOrderForResponse(order),
     previousStatus,
@@ -404,20 +460,32 @@ export const getWorkflowConfig = () => {
     actions
   };
 };
-
-export const getAvailableActions = (order: IOrder, user: IUser): WorkflowAction[] => {
+export const getAvailableActions = (order: IOrder, user: IUser) => {
   const userPermissions = user.permissions || [];
-  return WORKFLOW_ACTIONS.filter(action => {
-    const definition = ACTION_DEFINITIONS[action];
-    if (!definition.from.includes(order.orderStatus)) {
-      return false;
-    }
-    if (!hasPermission(userPermissions, definition.requiredPermission)) {
-      return false;
-    }
-    if (definition.guard && !definition.guard(order)) {
-      return false;
-    }
-    return true;
+  const userAdminRole = (user as any).adminRole as string | undefined;
+  const userIsAssigned = order.assignedRider && order.assignedRider.rider && (order.assignedRider.rider as mongoose.Types.ObjectId).equals(user._id as mongoose.Types.ObjectId);
+
+  // Return detailed action objects that include metadata the frontend expects
+  return WORKFLOW_ACTIONS.map((actionKey) => {
+    const def = ACTION_DEFINITIONS[actionKey];
+    return {
+      action: actionKey,
+      label: actionKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      targetStatus: def.to,
+      permission: def.requiredPermission,
+      ownerRoles: def.ownerRoles || [],
+      requires: def.requires || {},
+      from: def.from,
+      guard: !!def.guard
+    };
+  }).filter((act) => {
+    const def = ACTION_DEFINITIONS[act.action as WorkflowAction];
+    if (!def.from.includes(order.orderStatus)) return false;
+    if (def.guard && !def.guard(order)) return false;
+    // allow if permission OR owner role OR assigned
+    const allowedByPermission = hasPermission(userPermissions, def.requiredPermission);
+    const allowedByRole = def.ownerRoles && userAdminRole ? def.ownerRoles.includes(userAdminRole) : false;
+    const allowed = allowedByPermission || allowedByRole || userIsAssigned;
+    return allowed;
   });
 };

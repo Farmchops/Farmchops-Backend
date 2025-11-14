@@ -532,13 +532,30 @@ export const getUserOrders = async (req: AuthRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const orders = await Order.find({ user: req.user._id })
+    // Riders and other assigned users should also see orders they've been assigned to.
+    const assignedTo = req.query.assignedTo as string | undefined;
+
+    const baseFilter: any = {};
+    if (assignedTo && req.user.role === 'admin') {
+      // Admins can query orders assigned to a specific user
+      if (mongoose.Types.ObjectId.isValid(assignedTo)) {
+        baseFilter['assignedRider.rider'] = new mongoose.Types.ObjectId(assignedTo);
+      }
+    } else {
+      // Default: return orders placed by the user OR orders assigned to them (for riders)
+      baseFilter.$or = [
+        { user: req.user._id },
+        { 'assignedRider.rider': req.user._id }
+      ];
+    }
+
+    const orders = await Order.find(baseFilter)
       .populate('items.product', 'name images')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const totalOrders = await Order.countDocuments({ user: req.user._id });
+    const totalOrders = await Order.countDocuments(baseFilter);
 
     return res.json({
       success: true,

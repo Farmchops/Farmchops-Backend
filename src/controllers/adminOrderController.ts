@@ -6,7 +6,9 @@ import { AuthRequest } from '../middleware/auth';
 import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions, getWorkflowConfig } from '../services/orderWorkflowService';
 
 // GET /api/admin/orders?search=&status=&page=&limit=&sort=
-export const getOrders = async (req: Request, res: Response) => {
+import { PERMISSIONS } from '../utils/permissions';
+
+export const getOrders = async (req: AuthRequest, res: Response) => {
   try {
     const {
       search = '',
@@ -14,7 +16,10 @@ export const getOrders = async (req: Request, res: Response) => {
       page = 1,
       limit = 20,
       sort = '-createdAt',
-      date
+      date,
+      ownerRole,
+      includeAssigned = 'false',
+      assignedTo
     } = req.query as any;
 
     const query: any = {};
@@ -38,7 +43,7 @@ export const getOrders = async (req: Request, res: Response) => {
       query.createdAt = { $gte: start, $lte: end };
     }
 
-        // Populate user for customer name/email search using firstName/lastName/email
+    // Populate user for customer name/email search using firstName/lastName/email
     let userMatch = null;
     if (search) {
       userMatch = await mongoose.model('User').find({
@@ -52,6 +57,40 @@ export const getOrders = async (req: Request, res: Response) => {
         query.$or.push({ user: { $in: userMatch.map((u: any) => u._id) } });
       }
     }
+
+    // Visibility / ownerRole handling
+    const caller = req.user;
+    const callerPermissions = caller?.permissions || [];
+    const isSuper = caller && (Array.isArray(callerPermissions) && callerPermissions.includes(PERMISSIONS.ALL) || (caller as any).adminRole === 'super_admin');
+
+    // If assignedTo is provided (admin filtering by assigned user), respect it
+    if (assignedTo && mongoose.Types.ObjectId.isValid(String(assignedTo))) {
+      query['assignedRider.rider'] = new mongoose.Types.ObjectId(String(assignedTo));
+    }
+
+    // Non-super-admin behavior for ownerRole
+    if (!isSuper) {
+      const effectiveOwner = ownerRole || (caller as any)?.adminRole;
+      if (ownerRole) {
+        // If caller asked for a specific ownerRole, return orders owned by that role OR explicitly assigned to caller
+        query.$or = [
+          { currentStageOwnerRole: ownerRole },
+          { 'assignedRider.rider': caller?._id }
+        ];
+      } else if (effectiveOwner) {
+        // Default to caller's adminRole, but always include orders assigned to caller
+        query.$or = [
+          { currentStageOwnerRole: effectiveOwner },
+          { 'assignedRider.rider': caller?._id }
+        ];
+      } else if (includeAssigned === 'true') {
+        // If no ownerRole and includeAssigned, include assigned orders
+        query['assignedRider.rider'] = caller?._id;
+      }
+    }
+
+    // If includeAssigned explicitly requested for super admins, include assigned orders in broad search by not restricting
+    // (super admins already see all orders)
 
     const orders = await Order.find(query)
       .populate('user', 'firstName lastName email')
