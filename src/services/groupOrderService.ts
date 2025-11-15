@@ -163,7 +163,11 @@ export class GroupOrderService {
 
         // Update participants with order IDs
         for (let i = 0; i < group.participants.length; i++) {
-          group.participants[i].orderId = orders[i]._id;
+          const participant = group.participants[i];
+          const order = orders[i];
+          if (participant && order) {
+            participant.orderId = order._id;
+          }
         }
       }
 
@@ -202,6 +206,10 @@ export class GroupOrderService {
       }
 
       const participant = group.participants[participantIndex];
+      if (!participant) {
+        throw new GroupOrderError('Participant data not found', 404, 'PARTICIPANT_NOT_FOUND');
+      }
+
       const refundAmount = participant.amount + participant.deliveryFee;
 
       // Remove participant
@@ -255,7 +263,7 @@ export class GroupOrderService {
         groupOrder: {
           isGroupOrder: true,
           groupId: group.groupId,
-          initiator: group.participants[0].userId,
+          initiator: group.participants[0]?.userId || participant.userId,
           participants: group.participants.map(p => ({
             user: p.userId,
             joinedAt: p.joinedAt,
@@ -276,8 +284,8 @@ export class GroupOrderService {
 
       // Decrease product stock
       const product = await Product.findById(group.product._id).session(session);
-      if (product) {
-        await product.updateStock(participant.quantity, 'decrease');
+      if (product && typeof (product as any).updateStock === 'function') {
+        await (product as any).updateStock(participant.quantity, 'decrease');
       }
     }
 
