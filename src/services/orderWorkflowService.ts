@@ -86,7 +86,7 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'processing',
     requiredPermission: PERMISSIONS.ORDERS_PROCESSING_START,
     nextOwner: NEXT_STAGE_OWNER.processing,
-    ownerRoles: ['operations','processing'],
+    ownerRoles: ['operations_officer'],
     requires: { note: false },
     guard: (order) => order.paymentStatus === 'paid'
   },
@@ -95,7 +95,7 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'ready_for_dispatch',
     requiredPermission: PERMISSIONS.ORDERS_PROCESSING_COMPLETE,
     nextOwner: NEXT_STAGE_OWNER.ready_for_dispatch,
-    ownerRoles: ['processing','packaging','logistics'],
+    ownerRoles: ['operations_officer','logistics'],
     requires: { note: true },
     guard: (order) => order.paymentStatus === 'paid'
   },
@@ -131,14 +131,14 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'completed',
     requiredPermission: PERMISSIONS.ORDERS_DELIVERY_CLOSE,
     nextOwner: NEXT_STAGE_OWNER.completed,
-    ownerRoles: ['support']
+    ownerRoles: ['customer_support']
   },
   'fail-delivery': {
     from: ['en_route'],
     to: 'failed_delivery',
     requiredPermission: PERMISSIONS.ORDERS_DISPATCH_FAIL,
     nextOwner: NEXT_STAGE_OWNER.failed_delivery,
-    ownerRoles: ['logistics','support','supervisor'],
+    ownerRoles: ['logistics','customer_support','operations_officer'],
     requires: { reason: true, note: false },
     guard: (order) => Boolean(order.assignedRider?.rider)
   },
@@ -154,7 +154,7 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     to: 'cancelled',
     requiredPermission: PERMISSIONS.ORDERS_OVERRIDE_CANCEL,
     nextOwner: NEXT_STAGE_OWNER.cancelled,
-    ownerRoles: ['support','supervisor'],
+    ownerRoles: ['customer_support','operations_officer'],
     requires: { reason: true }
   }
 };

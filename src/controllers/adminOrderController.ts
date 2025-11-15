@@ -8,6 +8,18 @@ import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions,
 // GET /api/admin/orders?search=&status=&page=&limit=&sort=
 import { PERMISSIONS } from '../utils/permissions';
 
+// Map adminRole to OrderStageOwner
+const mapAdminRoleToStageOwner = (adminRole: string): string => {
+  const roleMap: Record<string, string> = {
+    'operations_officer': 'processing',
+    'logistics': 'logistics',
+    'customer_support': 'support',
+    'rider': 'rider',
+    'super_admin': 'system'
+  };
+  return roleMap[adminRole] || adminRole;
+};
+
 export const getOrders = async (req: AuthRequest, res: Response) => {
   try {
     const {
@@ -70,7 +82,10 @@ export const getOrders = async (req: AuthRequest, res: Response) => {
 
     // Non-super-admin behavior for ownerRole
     if (!isSuper) {
-      const effectiveOwner = ownerRole || (caller as any)?.adminRole;
+      const callerAdminRole = (caller as any)?.adminRole;
+      const mappedOwnerRole = callerAdminRole ? mapAdminRoleToStageOwner(callerAdminRole) : undefined;
+      const effectiveOwner = ownerRole || mappedOwnerRole;
+
       if (ownerRole) {
         // If caller asked for a specific ownerRole, return orders owned by that role OR explicitly assigned to caller
         query.$or = [
@@ -78,7 +93,7 @@ export const getOrders = async (req: AuthRequest, res: Response) => {
           { 'assignedRider.rider': caller?._id }
         ];
       } else if (effectiveOwner) {
-        // Default to caller's adminRole, but always include orders assigned to caller
+        // Default to caller's mapped stage owner role, but always include orders assigned to caller
         query.$or = [
           { currentStageOwnerRole: effectiveOwner },
           { 'assignedRider.rider': caller?._id }
