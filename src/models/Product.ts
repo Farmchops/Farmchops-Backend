@@ -8,10 +8,10 @@ export interface IProduct extends Document {
   description: string;
   images: string[];
   category: mongoose.Types.ObjectId;
-  
+
   pricing: {
     retail: {
-      price: number; 
+      price: number;
       unit: string;
       minQuantity: number;
     };
@@ -22,22 +22,30 @@ export interface IProduct extends Document {
       minQuantity: number;
     }>;
   };
-  
+
   inventory: {
     availableStock: number;
     lowStockThreshold: number;
     unit: string;
   };
-  
+
+  groupBuyingEnabled: boolean;
+  groupConfig?: {
+    totalSlots: number;
+    quantityPerSlot: number;
+    pricePerSlot: number;
+    maxActiveGroups: number;
+  };
+
   tags: string[];
   slug: string;
-  
+
   stats: {
     viewCount: number;
     orderCount: number;
     totalSold: number;
   };
-  
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -138,7 +146,34 @@ const ProductSchema: Schema = new Schema({
       trim: true
     }
   },
-  
+
+  groupBuyingEnabled: {
+    type: Boolean,
+    default: false
+  },
+
+  groupConfig: {
+    totalSlots: {
+      type: Number,
+      min: [2, 'Group must have at least 2 slots'],
+      max: [100, 'Group cannot have more than 100 slots']
+    },
+    quantityPerSlot: {
+      type: Number,
+      min: [1, 'Quantity per slot must be at least 1']
+    },
+    pricePerSlot: {
+      type: Number,
+      min: [1, 'Price per slot must be at least 1 kobo']
+    },
+    maxActiveGroups: {
+      type: Number,
+      min: [1, 'Must allow at least 1 active group'],
+      max: [50, 'Cannot have more than 50 active groups'],
+      default: 5
+    }
+  },
+
   status: {
     type: String,
     enum: ['active', 'inactive', 'draft', 'out_of_stock'],

@@ -43,6 +43,8 @@ import adminDealRoutes from './routes/adminDealRoutes';
 import dealRoutes from './routes/dealRoutes';
 import vendorRoutes from './routes/vendorRoutes';
 import adminVendorRoutes from './routes/adminVendorRoutes';
+import groupOrderRoutes from './routes/groupOrderRoutes';
+import adminGroupOrderRoutes from './routes/adminGroupOrderRoutes';
 // import placesRoutes from './routes/placesRoutes';
 
 
@@ -86,6 +88,8 @@ app.use('/api/rider', riderOrderRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/admin/vendors', adminVendorRoutes);
+app.use('/api/group-orders', groupOrderRoutes);
+app.use('/api/admin', adminGroupOrderRoutes);
 // app.use('/api/places', placesRoutes);
 
 
