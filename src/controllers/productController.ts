@@ -102,7 +102,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     // Execute query with population
     const products = await Product.find(filter)
       .populate('category', 'name slug')
-      .select('-__v')
+      .select('-__v +groupBuyingEnabled +groupConfig')
       .sort(sortOptions)
       .skip(skip)
       .limit(limitNum)
@@ -159,10 +159,12 @@ export const getProductBySlug = async (req: Request, res: Response): Promise<Res
   try {
     const { slug } = req.params;
 
-    const product = await Product.findOne({ 
+    const product = await Product.findOne({
       slug,
       ...(req.user?.role !== 'admin' && { status: 'active' })
-    }).populate('category', 'name slug description');
+    })
+    .populate('category', 'name slug description')
+    .select('-__v');
 
     if (!product) {
       return res.status(404).json({
