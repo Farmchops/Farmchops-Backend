@@ -82,15 +82,18 @@ export const configureGroupBuying = async (req: AuthRequest, res: Response): Pro
       await product.save();
     }
 
+    // Reload product to get the saved state with all fields
+    const savedProduct = await Product.findById(productId).lean();
+
     return res.json({
       success: true,
       message: groupBuyingEnabled ? 'Group buying enabled successfully' : 'Group buying disabled',
       data: {
         product: {
-          _id: product._id,
-          name: product.name,
-          groupBuyingEnabled: product.groupBuyingEnabled,
-          groupConfig: product.groupConfig
+          _id: savedProduct?._id,
+          name: savedProduct?.name,
+          groupBuyingEnabled: savedProduct?.groupBuyingEnabled,
+          groupConfig: savedProduct?.groupConfig
         }
       }
     });
