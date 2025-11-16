@@ -102,7 +102,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     // Execute query with population
     const products = await Product.find(filter)
       .populate('category', 'name slug')
-      .select('-__v +groupBuyingEnabled +groupConfig')
+      .select('-__v')
       .sort(sortOptions)
       .skip(skip)
       .limit(limitNum)
