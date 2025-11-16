@@ -11,6 +11,7 @@ import {
   getInventoryTracking,
   updateProductStock
 } from '../controllers/productController';
+import { configureGroupBuying } from '../controllers/adminGroupOrderController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 import { uploadProductImages } from '../middleware/uploadMiddleware';
 
@@ -31,6 +32,9 @@ router.get('/admin/inventory', authenticateToken, requireAdmin, getInventoryTrac
 
 // PATCH /api/products/admin/:id/stock - Update product stock (admin only)
 router.patch('/admin/:id/stock', authenticateToken, requireAdmin, updateProductStock);
+
+// PUT /api/products/:productId/group-config - Configure group buying (admin only)
+router.put('/:productId/group-config', authenticateToken, requireAdmin, configureGroupBuying);
 
 // GET /api/products/:slug - Get single product
 router.get('/:slug', getProductBySlug);
