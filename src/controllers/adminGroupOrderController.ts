@@ -12,7 +12,9 @@ import mongoose from 'mongoose';
 export const configureGroupBuying = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {
     const { productId } = req.params;
-    const { groupBuyingEnabled, totalSlots, quantityPerSlot, pricePerSlot, maxActiveGroups = 5 } = req.body;
+    // Support both 'enabled' (from frontend) and 'groupBuyingEnabled' (backend standard)
+    const groupBuyingEnabled = req.body.groupBuyingEnabled ?? req.body.enabled;
+    const { totalSlots, quantityPerSlot, pricePerSlot, maxActiveGroups = 5 } = req.body;
 
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
       return res.status(400).json({
