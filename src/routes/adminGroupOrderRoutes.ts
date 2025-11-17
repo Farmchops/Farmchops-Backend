@@ -19,6 +19,7 @@ router.post('/products/:productId/group-config', configureGroupBuying);
 router.post('/products/:productId/create-group', createGroup);
 
 // Group management
+router.post('/group-orders', createGroup); // Create group with productId in body
 router.get('/group-orders', getAllGroups);
 router.get('/group-orders/:groupId', getGroupDetailsAdmin);
 router.post('/group-orders/:groupId/cancel', cancelGroup);

@@ -289,11 +289,12 @@ export const cancelGroup = async (req: AuthRequest, res: Response): Promise<Resp
 
 /**
  * POST /api/admin/products/:productId/create-group
- * Manually create a new group for a product
+ * Manually create a new group for a product (URL param version)
  */
 export const createGroup = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {
-    const { productId } = req.params;
+    // Try both params and body for productId
+    const productId = req.params.productId || req.body.productId;
 
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
       return res.status(400).json({
