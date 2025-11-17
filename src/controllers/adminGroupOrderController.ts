@@ -300,6 +300,15 @@ export const cancelGroup = async (req: AuthRequest, res: Response): Promise<Resp
  */
 export const createGroup = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {
+    // Debug: log request in dev to help trace why this endpoint fails for some clients
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.debug('[DEV] createGroup called. params:', req.params, 'body:', req.body, 'headers:', {
+        origin: req.headers.origin,
+        authorization: req.headers.authorization ? 'present' : 'missing'
+      });
+    }
+
     // Try both params and body for productId
     const productId = req.params.productId || req.body.productId;
 
