@@ -179,6 +179,12 @@ export const getGroupDetailsAdmin = async (req: AuthRequest, res: Response): Pro
   try {
     const { groupId } = req.params;
 
+    // Debug: log what groupId we're looking for
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.debug('[DEV] getGroupDetailsAdmin called. groupId:', groupId, 'params:', req.params);
+    }
+
     if (!groupId) {
       return res.status(400).json({
         success: false,
@@ -187,6 +193,12 @@ export const getGroupDetailsAdmin = async (req: AuthRequest, res: Response): Pro
     }
 
     const group = await GroupOrder.findOne({ groupId });
+
+    // Debug: log whether we found the group
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.debug('[DEV] Group lookup result:', group ? `Found: ${group.groupId}` : 'Not found');
+    }
 
     if (!group) {
       return res.status(404).json({

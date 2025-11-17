@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
  * GET /api/group-orders/active
  * Get all active groups
  */
-export const getActiveGroups = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getActiveGroups = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {
     const { productId } = req.query;
 
@@ -18,7 +18,7 @@ export const getActiveGroups = async (req: AuthRequest, res: Response): Promise<
       groups = await GroupOrderService.getAllActiveGroups();
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         groups: groups.map(g => ({
@@ -35,7 +35,7 @@ export const getActiveGroups = async (req: AuthRequest, res: Response): Promise<
       }
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to fetch active groups'
     });
