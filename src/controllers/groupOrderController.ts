@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { GroupOrderService, GroupOrderError } from '../services/groupOrderService';
 import mongoose from 'mongoose';
+import paystackService from '../config/paystack';
+import crypto from 'crypto';
 
 /**
  * GET /api/group-orders/active
@@ -44,7 +46,7 @@ export const getActiveGroups = async (req: AuthRequest, res: Response): Promise<
 
 /**
  * POST /api/group-orders/:groupId/join
- * Join a group
+ * Join a group - Initialize payment flow (matches regular checkout)
  */
 export const joinGroup = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {
@@ -56,7 +58,7 @@ export const joinGroup = async (req: AuthRequest, res: Response): Promise<Respon
     }
 
     const { groupId } = req.params;
-    const { deliveryInfo, paymentReference, deliveryFee = 0 } = req.body;
+    const { deliveryInfo, paymentMethod = 'paystack', deliveryFee = 0 } = req.body;
 
     if (!groupId) {
       return res.status(400).json({
@@ -73,48 +75,100 @@ export const joinGroup = async (req: AuthRequest, res: Response): Promise<Respon
       });
     }
 
-    if (!paymentReference) {
+    // Validate payment method
+    if (!paymentMethod || !['wallet', 'paystack'].includes(paymentMethod)) {
       return res.status(400).json({
         success: false,
-        message: 'Payment reference required'
+        message: 'Valid payment method (wallet, paystack) is required'
       });
     }
 
-    const result = await GroupOrderService.joinGroup({
-      groupId,
-      userId: req.user._id as mongoose.Types.ObjectId,
-      deliveryInfo,
-      paymentReference,
-      deliveryFee
-    });
+    // Get the group to get price information
+    const { GroupOrder } = await import('../models/GroupOrder');
+    const group = await GroupOrder.findOne({ groupId, status: 'active' });
 
-    if (result.autoConfirmed) {
-      return res.json({
-        success: true,
-        message: 'Group is now full! Your order has been created.',
-        data: {
-          groupId: result.group.groupId,
-          filledSlots: result.group.filledSlots,
-          totalSlots: result.group.totalSlots,
-          status: result.group.status,
-          order: result.orders && result.orders.length > 0 ? {
-            orderNumber: result.orders.find(o => o.user.equals(req.user?._id))?.orderNumber,
-            orderStatus: 'ready_for_processing'
-          } : null
-        }
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found or already full',
+        code: 'GROUP_NOT_AVAILABLE'
       });
     }
 
-    return res.json({
-      success: true,
-      message: 'Successfully joined the group',
-      data: {
-        groupId: result.group.groupId,
-        filledSlots: result.group.filledSlots,
-        totalSlots: result.group.totalSlots,
-        status: result.group.status
+    // Check if user already joined
+    const alreadyJoined = group.participants.some(p => p.userId.equals(req.user!._id as mongoose.Types.ObjectId));
+    if (alreadyJoined) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already joined this group',
+        code: 'ALREADY_JOINED'
+      });
+    }
+
+    // Check if group is full
+    if (group.filledSlots >= group.totalSlots) {
+      return res.status(400).json({
+        success: false,
+        message: 'Group is already full',
+        code: 'GROUP_FULL'
+      });
+    }
+
+    const totalAmount = group.pricePerSlot + deliveryFee;
+
+    // Generate payment reference
+    const paymentReference = `grp-${crypto.randomBytes(8).toString('hex')}`;
+
+    // If payment method is Paystack, initialize payment and return authorization URL
+    if (paymentMethod === 'paystack') {
+      try {
+        const paystackResponse = await paystackService.initializeTransaction(
+          req.user.email,
+          totalAmount,
+          paymentReference,
+          {
+            groupId,
+            userId: (req.user._id as mongoose.Types.ObjectId).toString(),
+            deliveryInfo: JSON.stringify(deliveryInfo),
+            deliveryFee: deliveryFee.toString()
+          }
+        );
+
+        return res.json({
+          success: true,
+          message: 'Payment initialized. Complete payment to join group.',
+          data: {
+            groupId: group.groupId,
+            product: group.product,
+            totalSlots: group.totalSlots,
+            filledSlots: group.filledSlots,
+            pricePerSlot: group.pricePerSlot,
+            deliveryFee,
+            totalAmount,
+            payment: {
+              authorizationUrl: paystackResponse.data.authorization_url,
+              accessCode: paystackResponse.data.access_code,
+              reference: paystackResponse.data.reference
+            }
+          }
+        });
+      } catch (paystackError: any) {
+        console.error('Paystack initialization error:', paystackError);
+        return res.status(500).json({
+          success: false,
+          message: 'Payment initialization failed',
+          error: paystackError.message
+        });
       }
+    }
+
+    // If payment method is wallet, process immediately
+    // TODO: Implement wallet payment logic
+    return res.status(400).json({
+      success: false,
+      message: 'Wallet payment not yet implemented for group orders'
     });
+
   } catch (error) {
     if (error instanceof GroupOrderError) {
       return res.status(error.status).json({
@@ -292,6 +346,163 @@ export const getGroupDetails = async (req: AuthRequest, res: Response): Promise<
     return res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to fetch group details'
+    });
+  }
+};
+
+/**
+ * POST /api/group-orders/webhook/paystack
+ * Handle Paystack webhook for group order payments
+ */
+export const groupOrderPaystackWebhook = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    // Verify webhook signature
+    const hash = crypto
+      .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY || '')
+      .update(JSON.stringify(req.body))
+      .digest('hex');
+
+    if (hash !== req.headers['x-paystack-signature']) {
+      return res.status(401).json({ success: false, message: 'Invalid signature' });
+    }
+
+    const event = req.body;
+
+    if (event.event === 'charge.success') {
+      const { reference, metadata } = event.data;
+
+      // Check if this is a group order payment
+      if (metadata && metadata.groupId) {
+        const { groupId, userId, deliveryInfo, deliveryFee } = metadata;
+
+        // Parse deliveryInfo if it's a string
+        const parsedDeliveryInfo = typeof deliveryInfo === 'string'
+          ? JSON.parse(deliveryInfo)
+          : deliveryInfo;
+
+        const parsedDeliveryFee = typeof deliveryFee === 'string'
+          ? parseFloat(deliveryFee)
+          : deliveryFee;
+
+        // Add user to the group
+        try {
+          const result = await GroupOrderService.joinGroup({
+            groupId,
+            userId: new mongoose.Types.ObjectId(userId),
+            deliveryInfo: parsedDeliveryInfo,
+            paymentReference: reference,
+            deliveryFee: parsedDeliveryFee || 0
+          });
+
+          console.log(`User ${userId} successfully joined group ${groupId} after payment confirmation`);
+
+          // If group was auto-confirmed (full), log it
+          if (result.autoConfirmed) {
+            console.log(`Group ${groupId} is now full and confirmed. Orders created for all participants.`);
+          }
+
+        } catch (joinError: any) {
+          console.error('Error joining group after payment:', joinError);
+          // Even if joining fails, acknowledge the webhook to prevent retries
+          return res.status(200).json({
+            success: false,
+            message: 'Payment received but failed to join group',
+            error: joinError.message
+          });
+        }
+      }
+    }
+
+    return res.status(200).json({ success: true });
+
+  } catch (error: any) {
+    console.error('Group order Paystack webhook error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Webhook processing failed'
+    });
+  }
+};
+
+/**
+ * GET /api/group-orders/verify-payment/:reference
+ * Verify group order payment (for frontend to poll/check)
+ */
+export const verifyGroupOrderPayment = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const { reference } = req.params;
+
+    if (!reference) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment reference is required'
+      });
+    }
+
+    // Verify with Paystack
+    const paystackResponse = await paystackService.verifyTransaction(reference);
+
+    if (paystackResponse.status && paystackResponse.data.status === 'success') {
+      const metadata = paystackResponse.data.metadata;
+
+      if (metadata && metadata.groupId) {
+        // Check if user is now in the group
+        const { GroupOrder } = await import('../models/GroupOrder');
+        const group = await GroupOrder.findOne({ groupId: metadata.groupId });
+
+        if (!group) {
+          return res.status(404).json({
+            success: false,
+            message: 'Group not found'
+          });
+        }
+
+        const participant = group.participants.find(p =>
+          p.userId.equals(req.user!._id as mongoose.Types.ObjectId)
+        );
+
+        if (participant) {
+          return res.json({
+            success: true,
+            message: 'Payment verified and you have joined the group',
+            data: {
+              groupId: group.groupId,
+              filledSlots: group.filledSlots,
+              totalSlots: group.totalSlots,
+              status: group.status,
+              participant: {
+                amount: participant.amount,
+                quantity: participant.quantity,
+                joinedAt: participant.joinedAt
+              }
+            }
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: 'Payment verified but you are not in the group yet. Please try again.'
+          });
+        }
+      }
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: 'Payment verification failed'
+    });
+
+  } catch (error: any) {
+    console.error('Verify group order payment error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to verify payment'
     });
   }
 };
