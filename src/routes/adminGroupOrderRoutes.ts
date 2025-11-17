@@ -11,9 +11,12 @@ import { authenticateToken, requireAdmin } from '../middleware/auth';
 const router = Router();
 
 // Explicitly handle OPTIONS for all routes (CORS preflight)
-router.options('*', (req, res) => {
-  res.status(204).send();
-});
+// Note: Must come before auth middleware
+router.options('/products/:productId/group-config', (_req, res) => res.status(204).send());
+router.options('/products/:productId/create-group', (_req, res) => res.status(204).send());
+router.options('/group-orders', (_req, res) => res.status(204).send());
+router.options('/group-orders/:groupId', (_req, res) => res.status(204).send());
+router.options('/group-orders/:groupId/cancel', (_req, res) => res.status(204).send());
 
 // All routes require admin authentication (except OPTIONS for CORS preflight)
 router.use((req, res, next) => {
