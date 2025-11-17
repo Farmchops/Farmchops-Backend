@@ -115,8 +115,7 @@ const GroupOrderSchema = new Schema<IGroupOrder>({
   groupId: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   product: {
     _id: {
@@ -178,7 +177,6 @@ const GroupOrderSchema = new Schema<IGroupOrder>({
 GroupOrderSchema.index({ 'product._id': 1, status: 1 });
 GroupOrderSchema.index({ status: 1, createdAt: -1 });
 GroupOrderSchema.index({ 'participants.userId': 1 });
-GroupOrderSchema.index({ groupId: 1 }, { unique: true });
 
 // Static method to generate unique group ID
 GroupOrderSchema.statics.generateGroupId = async function(): Promise<string> {

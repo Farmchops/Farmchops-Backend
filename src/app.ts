@@ -60,13 +60,6 @@ if (process.env.NODE_ENV !== 'production') {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
   }));
-  // Dev debug: respond to preflight explicitly and log it
-  app.options('*', (req, res) => {
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
-    return res.sendStatus(204);
-  });
   app.use((req, res, next) => {
     // Log incoming requests in dev to help debug CORS/preflight issues
     // eslint-disable-next-line no-console
