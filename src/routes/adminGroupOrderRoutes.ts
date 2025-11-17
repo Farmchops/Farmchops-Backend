@@ -10,6 +10,11 @@ import { authenticateToken, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
+// Explicitly handle OPTIONS for all routes (CORS preflight)
+router.options('*', (req, res) => {
+  res.status(204).send();
+});
+
 // All routes require admin authentication (except OPTIONS for CORS preflight)
 router.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
