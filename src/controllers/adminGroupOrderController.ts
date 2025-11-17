@@ -135,24 +135,31 @@ export const getAllGroups = async (req: AuthRequest, res: Response): Promise<Res
         .reduce((sum, g) => sum + (g.pricePerSlot * g.filledSlots), 0)
     };
 
+    // Return both legacy top-level keys and nested `data` envelope for frontend compatibility
+    const mapped = groups.map(g => ({
+      groupId: g.groupId,
+      product: g.product,
+      totalSlots: g.totalSlots,
+      filledSlots: g.filledSlots,
+      quantityPerSlot: g.quantityPerSlot,
+      pricePerSlot: g.pricePerSlot,
+      status: g.status,
+      participantsCount: g.participants.length,
+      totalRevenue: g.pricePerSlot * g.filledSlots + g.participants.reduce((sum, p) => sum + p.deliveryFee, 0),
+      createdAt: g.createdAt,
+      confirmedAt: g.confirmedAt,
+      cancelledAt: g.cancelledAt,
+      cancelledReason: g.cancelledReason
+    }));
+
     return res.json({
       success: true,
+      // legacy top-level fields some frontends still expect
+      groups: mapped,
+      stats,
+      // new nested envelope
       data: {
-        groups: groups.map(g => ({
-          groupId: g.groupId,
-          product: g.product,
-          totalSlots: g.totalSlots,
-          filledSlots: g.filledSlots,
-          quantityPerSlot: g.quantityPerSlot,
-          pricePerSlot: g.pricePerSlot,
-          status: g.status,
-          participantsCount: g.participants.length,
-          totalRevenue: g.pricePerSlot * g.filledSlots + g.participants.reduce((sum, p) => sum + p.deliveryFee, 0),
-          createdAt: g.createdAt,
-          confirmedAt: g.confirmedAt,
-          cancelledAt: g.cancelledAt,
-          cancelledReason: g.cancelledReason
-        })),
+        groups: mapped,
         stats
       }
     });

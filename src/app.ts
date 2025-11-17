@@ -51,19 +51,30 @@ import adminGroupOrderRoutes from './routes/adminGroupOrderRoutes';
 const PORT = Number(process.env.PORT) || 5000;
 
 
-app.use(cors({
-  origin: [ 'http://localhost:5173',
-    'http://localhost:3000',
-    'https://farmchops.com',
-    'https://www.farmchops.com',
-    'https://api.farmchops.com',
-    'https://staging.farmchops.com',  // ADD THIS
-    'http://staging.farmchops.com'
-  ], 
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// CORS configuration
+// In development allow the frontend origin(s) flexibly to avoid preflight issues (helps local dev).
+if (process.env.NODE_ENV !== 'production') {
+  app.use(cors({
+    origin: (origin, cb) => cb(null, true), // allow any origin in dev
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  }));
+} else {
+  app.use(cors({
+    origin: [ 'http://localhost:5173',
+      'http://localhost:3000',
+      'https://farmchops.com',
+      'https://www.farmchops.com',
+      'https://api.farmchops.com',
+      'https://staging.farmchops.com',
+      'http://staging.farmchops.com'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  }));
+}
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }  // Add this!
