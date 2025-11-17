@@ -13,6 +13,7 @@ import {
 } from '../controllers/productController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 import { uploadProductImages } from '../middleware/uploadMiddleware';
+import { configureGroupBuying } from '../controllers/adminGroupOrderController';
 
 const router = Router();
 
@@ -31,6 +32,9 @@ router.get('/admin/inventory', authenticateToken, requireAdmin, getInventoryTrac
 
 // PATCH /api/products/admin/:id/stock - Update product stock (admin only)
 router.patch('/admin/:id/stock', authenticateToken, requireAdmin, updateProductStock);
+
+// POST /api/products/:productId/group-config - Configure group buying (admin only)
+router.post('/:productId/group-config', authenticateToken, requireAdmin, configureGroupBuying);
 
 // GET /api/products/:slug - Get single product
 router.get('/:slug', getProductBySlug);
