@@ -10,9 +10,19 @@ import { authenticateToken, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
-// All routes require admin authentication
-router.use(authenticateToken);
-router.use(requireAdmin);
+// All routes require admin authentication (except OPTIONS for CORS preflight)
+router.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  return authenticateToken(req, res, next);
+});
+router.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  return requireAdmin(req, res, next);
+});
 
 // Product group configuration
 router.post('/products/:productId/group-config', configureGroupBuying);

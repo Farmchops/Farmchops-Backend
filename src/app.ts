@@ -58,7 +58,9 @@ if (process.env.NODE_ENV !== 'production') {
     origin: (origin, cb) => cb(null, true), // allow any origin in dev
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
   }));
   app.use((req, res, next) => {
     // Log incoming requests in dev to help debug CORS/preflight issues
@@ -79,7 +81,9 @@ if (process.env.NODE_ENV !== 'production') {
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
   }));
 }
 
