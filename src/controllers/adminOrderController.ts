@@ -436,3 +436,97 @@ export const getOrderWorkflowConfiguration = (_req: Request, res: Response): Res
     data: getWorkflowConfig()
   });
 };
+
+// GET /api/admin/dashboard/conversion-rate - Returns ratio of users to purchasing users
+export const getConversionRate = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { startDate, endDate } = req.query as any;
+
+    const userMatch: any = {};
+    const orderMatch: any = {};
+    
+    if (startDate || endDate) {
+      userMatch.createdAt = {};
+      orderMatch.createdAt = {};
+      if (startDate) {
+        userMatch.createdAt.$gte = new Date(startDate);
+        orderMatch.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        userMatch.createdAt.$lte = new Date(endDate);
+        orderMatch.createdAt.$lte = new Date(endDate);
+      }
+    }
+
+    // Total users who joined the app
+    const totalUsers = await User.countDocuments(userMatch);
+
+    // Users who have made at least one purchase (paid order)
+    const paidOrderMatch = { ...orderMatch, paymentStatus: 'paid' };
+    const usersWhoPurchased = await Order.distinct('user', paidOrderMatch);
+    const purchasingUsers = usersWhoPurchased.length;
+
+    // Calculate conversion rate
+    const conversionRate = totalUsers > 0 
+      ? Number(((purchasingUsers / totalUsers) * 100).toFixed(2)) 
+      : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        totalUsers,
+        purchasingUsers,
+        conversionRate,
+        conversionRatio: `${purchasingUsers}:${totalUsers}`
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
+
+// GET /api/admin/dashboard/total-orders - Returns total orders count and breakdown
+export const getTotalOrders = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { startDate, endDate } = req.query as any;
+
+    const match: any = {};
+    if (startDate || endDate) {
+      match.createdAt = {};
+      if (startDate) match.createdAt.$gte = new Date(startDate);
+      if (endDate) match.createdAt.$lte = new Date(endDate);
+    }
+
+    // Total orders
+    const totalOrders = await Order.countDocuments(match);
+
+    // Breakdown by payment status
+    const paidOrders = await Order.countDocuments({ ...match, paymentStatus: 'paid' });
+    const pendingOrders = await Order.countDocuments({ ...match, paymentStatus: 'pending' });
+    const failedOrders = await Order.countDocuments({ ...match, paymentStatus: 'failed' });
+
+    // Breakdown by order status
+    const completedOrders = await Order.countDocuments({ ...match, orderStatus: 'completed' });
+    const cancelledOrders = await Order.countDocuments({ ...match, orderStatus: 'cancelled' });
+    const activeOrders = totalOrders - completedOrders - cancelledOrders;
+
+    return res.json({
+      success: true,
+      data: {
+        totalOrders,
+        byPaymentStatus: {
+          paid: paidOrders,
+          pending: pendingOrders,
+          failed: failedOrders
+        },
+        byOrderStatus: {
+          active: activeOrders,
+          completed: completedOrders,
+          cancelled: cancelledOrders
+        }
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};

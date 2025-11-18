@@ -16,7 +16,9 @@ import {
     getDashboardSummary, 
     getOrderTrend, 
     getUsersTrend, 
-    getRecentOrders
+    getRecentOrders,
+    getConversionRate,
+    getTotalOrders
 } from '../controllers/adminOrderController';
 import { authenticateToken, requireAdmin, requirePermission } from '../middleware/auth';
 import { PERMISSIONS } from '../utils/permissions';
@@ -46,5 +48,7 @@ router.get('/dashboard/summary', getDashboardSummary);
 router.get('/dashboard/order-trend', getOrderTrend);
 router.get('/dashboard/users-trend', getUsersTrend);
 router.get('/dashboard/recent-orders', getRecentOrders);
+router.get('/dashboard/conversion-rate', getConversionRate);
+router.get('/dashboard/total-orders', getTotalOrders);
 
 export default router;
