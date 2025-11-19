@@ -18,7 +18,8 @@ import {
     getUsersTrend, 
     getRecentOrders,
     getConversionRate,
-    getTotalOrders
+    getTotalOrders,
+	listRiders
 } from '../controllers/adminOrderController';
 import { authenticateToken, requireAdmin, requirePermission } from '../middleware/auth';
 import { PERMISSIONS } from '../utils/permissions';
@@ -29,6 +30,7 @@ const router = Router();
 router.use(authenticateToken);
 router.use(requireAdmin);
 
+router.get('/riders', requirePermission(PERMISSIONS.ORDERS_DISPATCH_ASSIGN), listRiders);
 router.get('/orders/workflow/config', requirePermission(PERMISSIONS.ORDERS_WORKFLOW_VIEW), getOrderWorkflowConfiguration);
 router.get('/orders', getOrders);
 router.get('/orders/:id/actions', requirePermission(PERMISSIONS.ORDERS_WORKFLOW_VIEW), getOrderAvailableActions);

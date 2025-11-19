@@ -35,3 +35,20 @@ export const uploadProductImages = multer({
     fileSize: 2 * 1024 * 1024 // 2MB per file
   }
 });
+
+// Vendor ID document upload (images or pdf)
+const vendorDocStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'farmchops/vendor-docs',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
+    transformation: []
+  } as any
+});
+
+export const uploadVendorDoc = multer({
+  storage: vendorDocStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  }
+});

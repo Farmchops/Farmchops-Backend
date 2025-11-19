@@ -7,7 +7,21 @@ import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions,
 
 
 // GET /api/admin/orders?search=&status=&page=&limit=&sort=
-export const getOrders = async (req: Request, res: Response) => {
+import { PERMISSIONS } from '../utils/permissions';
+
+// Map adminRole to OrderStageOwner
+const mapAdminRoleToStageOwner = (adminRole: string): string => {
+  const roleMap: Record<string, string> = {
+    'operations_officer': 'processing',
+    'logistics': 'logistics',
+    'customer_support': 'support',
+    'rider': 'rider',
+    'super_admin': 'system'
+  };
+  return roleMap[adminRole] || adminRole;
+};
+
+export const getOrders = async (req: AuthRequest, res: Response) => {
   try {
     const {
       search = '',
@@ -15,7 +29,10 @@ export const getOrders = async (req: Request, res: Response) => {
       page = 1,
       limit = 20,
       sort = '-createdAt',
-      date
+      date,
+      ownerRole,
+      includeAssigned = 'false',
+      assignedTo
     } = req.query as any;
 
     const query: any = {};
@@ -39,7 +56,7 @@ export const getOrders = async (req: Request, res: Response) => {
       query.createdAt = { $gte: start, $lte: end };
     }
 
-        // Populate user for customer name/email search using firstName/lastName/email
+    // Populate user for customer name/email search using firstName/lastName/email
     let userMatch = null;
     if (search) {
       userMatch = await mongoose.model('User').find({
@@ -53,6 +70,43 @@ export const getOrders = async (req: Request, res: Response) => {
         query.$or.push({ user: { $in: userMatch.map((u: any) => u._id) } });
       }
     }
+
+    // Visibility / ownerRole handling
+    const caller = req.user;
+    const callerPermissions = caller?.permissions || [];
+    const isSuper = caller && (Array.isArray(callerPermissions) && callerPermissions.includes(PERMISSIONS.ALL) || (caller as any).adminRole === 'super_admin');
+
+    // If assignedTo is provided (admin filtering by assigned user), respect it
+    if (assignedTo && mongoose.Types.ObjectId.isValid(String(assignedTo))) {
+      query['assignedRider.rider'] = new mongoose.Types.ObjectId(String(assignedTo));
+    }
+
+    // Non-super-admin behavior for ownerRole
+    if (!isSuper) {
+      const callerAdminRole = (caller as any)?.adminRole;
+      const mappedOwnerRole = callerAdminRole ? mapAdminRoleToStageOwner(callerAdminRole) : undefined;
+      const effectiveOwner = ownerRole || mappedOwnerRole;
+
+      if (ownerRole) {
+        // If caller asked for a specific ownerRole, return orders owned by that role OR explicitly assigned to caller
+        query.$or = [
+          { currentStageOwnerRole: ownerRole },
+          { 'assignedRider.rider': caller?._id }
+        ];
+      } else if (effectiveOwner) {
+        // Default to caller's mapped stage owner role, but always include orders assigned to caller
+        query.$or = [
+          { currentStageOwnerRole: effectiveOwner },
+          { 'assignedRider.rider': caller?._id }
+        ];
+      } else if (includeAssigned === 'true') {
+        // If no ownerRole and includeAssigned, include assigned orders
+        query['assignedRider.rider'] = caller?._id;
+      }
+    }
+
+    // If includeAssigned explicitly requested for super admins, include assigned orders in broad search by not restricting
+    // (super admins already see all orders)
 
     const orders = await Order.find(query)
       .populate('user', 'firstName lastName email')
@@ -221,6 +275,7 @@ export const getOrderAvailableActions = async (req: AuthRequest, res: Response):
   }
 };
 
+
 // GET /api/admin/dashboard/summary - Returns totalRevenue, totalOrders, conversionRate
 export const getDashboardSummary = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -262,6 +317,79 @@ export const getDashboardSummary = async (req: Request, res: Response): Promise<
 };
 
 
+export const listRiders = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { search = '', status = 'active' } = req.query as { search?: string; status?: string };
+
+    const filter: Record<string, unknown> = {
+      role: 'admin',
+      adminRole: 'rider'
+    };
+
+    if (status === 'inactive') {
+      filter.isActive = false;
+    } else if (status === 'all') {
+      // leave isActive unspecified
+    } else {
+      filter.isActive = true;
+    }
+
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      filter.$or = [
+        { firstName: regex },
+        { lastName: regex },
+        { email: regex },
+        { phone: regex }
+      ];
+    }
+
+    const riders = await User.find(filter)
+      .select('firstName lastName email phone isActive adminRole permissions')
+      .sort({ firstName: 1, lastName: 1, email: 1 });
+
+    const riderIds = riders.map((rider) => rider._id);
+    const activeOrders = riderIds.length
+      ? await Order.aggregate([
+          {
+            $match: {
+              'assignedRider.rider': { $in: riderIds },
+              orderStatus: { $in: ['awaiting_pickup', 'en_route'] }
+            }
+          },
+          {
+            $group: {
+              _id: '$assignedRider.rider',
+              count: { $sum: 1 }
+            }
+          }
+        ])
+      : [];
+
+    const activeMap = new Map<string, number>(activeOrders.map((entry) => [String(entry._id), entry.count]));
+
+    const data = riders.map((rider) => ({
+      _id: rider._id,
+      firstName: rider.firstName,
+      lastName: rider.lastName,
+      email: rider.email,
+      phone: rider.phone,
+      isActive: rider.isActive,
+      adminRole: rider.adminRole,
+      permissions: rider.permissions,
+      isOnDelivery: activeMap.get(String(rider._id)) ? true : false,
+      activeDeliveries: activeMap.get(String(rider._id)) || 0
+    }));
+
+    return res.json({ success: true, data });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
 
 // GET /api/admin/dashboard/order-trend - Returns array of { month: 'YYYY-MM', orderCount }
 export const getOrderTrend = async (req: Request, res: Response): Promise<Response> => {

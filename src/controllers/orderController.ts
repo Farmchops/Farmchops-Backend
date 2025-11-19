@@ -6,6 +6,7 @@ import { getDistanceBetween } from '../services/googleMapsService';
 import { CheckoutRequest, CheckoutSummaryResponse } from '../types/order.types';
 import { Order, IOrder } from '../models/Order';
 import { Product } from '../models/Product';
+import { Deal } from '../models/Deal';
 import paystackService from '../config/paystack';
 import crypto from 'crypto';
 import emailService from '../services/emailService';
@@ -67,7 +68,7 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
           durationText: distanceResult.durationText,
           fee: deliveryFee
         },
-        notes: notes || null, // Optional customer notes for special instructions
+        notes: notes || null,
         totals
       }
     });
@@ -82,9 +83,14 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
  * POST /api/orders/create
  */
 export const createOrder = async (req: AuthRequest, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     // User must be authenticated
     if (!req.user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
@@ -96,6 +102,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
 
     // Validate required fields
     if (!deliveryInfo || !deliveryInfo.address || !deliveryInfo.city || !deliveryInfo.state || !deliveryInfo.phoneNumber) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: 'Delivery information (address, city, state, phoneNumber) is required'
@@ -103,6 +111,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     }
 
     if (!paymentMethod || !['wallet', 'pay_later', 'paystack'].includes(paymentMethod)) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: 'Valid payment method (wallet, pay_later, paystack) is required'
@@ -112,6 +122,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Get cart
     const cart = await getCart(req);
     if (!cart || !cart.items || cart.items.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ success: false, message: 'Cart is empty' });
     }
 
@@ -119,23 +131,135 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     let calculatedDeliveryFee = deliveryFee;
     if (!calculatedDeliveryFee || calculatedDeliveryFee === 0) {
       try {
-        // Use warehouse coordinates from env or default
         const warehouse = process.env.DEFAULT_WAREHOUSE_COORDS || '6.5244,3.3792';
         const distanceResult = await getDistanceBetween(warehouse, deliveryInfo.address);
         const distanceKm = Number((distanceResult.distanceMeters / 1000).toFixed(2));
         calculatedDeliveryFee = calculateFee(cart.totalAmount, distanceKm);
       } catch (error) {
         console.error('Error calculating delivery fee:', error);
-        // Use minimum fee if calculation fails
         calculatedDeliveryFee = MIN_FEE;
       }
+    }
+
+    // CRITICAL: Validate and reserve deal inventory BEFORE creating order
+    const dealValidations: Map<string, { deal: any; requestedQuantity: number; userPreviousQuantity: number }> = new Map();
+
+    for (const item of cart.items) {
+      if (item.dealId) {
+        const dealId = String(item.dealId);
+        
+        // Find the deal
+        const deal = await Deal.findById(dealId).session(session);
+        
+        if (!deal) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({
+            success: false,
+            message: `Deal not found for item: ${item.name}`
+          });
+        }
+
+        // Check if deal is active
+        const now = new Date();
+        const computedStatus = Deal.determineStatus({
+          startAt: deal.startAt,
+          endAt: deal.endAt,
+          soldUnits: deal.soldUnits,
+          maxUnits: deal.maxUnits,
+          status: deal.status
+        });
+
+        if (computedStatus !== 'active') {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({
+            success: false,
+            message: `Deal is no longer active: ${deal.title}`
+          });
+        }
+
+        // Check if deal has enough inventory
+        const remainingUnits = deal.maxUnits - deal.soldUnits;
+        if (remainingUnits < item.quantity) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({
+            success: false,
+            message: `Deal sold out or insufficient quantity. Only ${remainingUnits} units remaining for: ${deal.title}`
+          });
+        }
+
+        // Check per-user limit
+        const userPreviousOrders = await Order.find({
+          user: req.user._id,
+          'items.deal': new mongoose.Types.ObjectId(dealId)
+        }).session(session);
+
+        const userPreviousQuantity = userPreviousOrders.reduce((sum, order) => {
+          return sum + order.items
+            .filter(orderItem => orderItem.deal?.toString() === dealId)
+            .reduce((itemSum, orderItem) => itemSum + orderItem.quantity, 0);
+        }, 0);
+
+        const totalUserQuantity = userPreviousQuantity + item.quantity;
+
+        if (totalUserQuantity > deal.perUserLimit) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({
+            success: false,
+            message: `Deal limit exceeded. You can only purchase ${deal.perUserLimit} units total. You've already claimed ${userPreviousQuantity} units for: ${deal.title}`
+          });
+        }
+
+        // Store for later increment
+        if (!dealValidations.has(dealId)) {
+          dealValidations.set(dealId, {
+            deal,
+            requestedQuantity: item.quantity,
+            userPreviousQuantity
+          });
+        } else {
+          // Same deal appears multiple times in cart (shouldn't happen but handle it)
+          const existing = dealValidations.get(dealId)!;
+          existing.requestedQuantity += item.quantity;
+        }
+      }
+    }
+
+    // Now increment soldUnits for all deals
+    for (const [dealId, validation] of dealValidations.entries()) {
+      const { deal, requestedQuantity } = validation;
+      
+      deal.soldUnits += requestedQuantity;
+      
+      // Update status if needed
+      const newStatus = Deal.determineStatus({
+        startAt: deal.startAt,
+        endAt: deal.endAt,
+        soldUnits: deal.soldUnits,
+        maxUnits: deal.maxUnits,
+        status: deal.status
+      });
+      
+      if (newStatus !== deal.status) {
+        deal.status = newStatus;
+      }
+      
+      await deal.save({ session });
+      
+      console.log(`Deal ${dealId} - Incremented soldUnits by ${requestedQuantity}. New total: ${deal.soldUnits}/${deal.maxUnits}`);
     }
 
     // Convert cart items to order items format
     const orderItems = cart.items.map((item) => ({
       productId: new mongoose.Types.ObjectId(item.productId),
       quantity: item.quantity,
-      priceType: item.priceType as 'retail' | 'bulk'
+      priceType: item.priceType as 'retail' | 'bulk',
+      unitPrice: typeof item.price === 'number' ? item.price : undefined,
+      totalPrice: typeof item.price === 'number' ? item.price * item.quantity : undefined,
+      dealId: item.dealId ? new mongoose.Types.ObjectId(item.dealId) : undefined
     }));
 
     // Generate payment reference for Paystack
@@ -144,7 +268,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       paymentReference = `PAY-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
     }
 
-    // Create the order
+    // Create the order within the transaction
     const order = await Order.createIndividualOrder({
       userId: req.user._id as mongoose.Types.ObjectId,
       items: orderItems,
@@ -152,14 +276,18 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       paymentMethod,
       deliveryFee: calculatedDeliveryFee,
       payementReference: paymentReference
-    });
+    }, session);
+
+    // Commit the transaction
+    await session.commitTransaction();
+    session.endSession();
 
     // Clear the cart after successful order creation
     await clearCart(req);
 
-  const handoverCode = (order as any).handoverCodePlain;
+    const handoverCode = (order as any).handoverCodePlain;
 
-  // Populate order details for response
+    // Populate order details for response
     await order.populate('user', 'firstName lastName email');
     await order.populate('items.product', 'name images');
 
@@ -244,6 +372,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error: any) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('Create order error:', error);
     return res.status(500).json({
       success: false,
@@ -252,10 +382,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
   }
 };
 
-/**
- * Verify Paystack payment (webhook)
- * POST /api/orders/paystack/webhook
- */
+// ... rest of the functions remain the same ...
+
 export const paystackWebhook = async (req: Request, res: Response) => {
   try {
     const hash = crypto
@@ -269,11 +397,9 @@ export const paystackWebhook = async (req: Request, res: Response) => {
 
     const event = req.body;
 
-    // Handle successful payment
     if (event.event === 'charge.success') {
       const { reference, metadata } = event.data;
 
-      // Find order by payment reference
       const order = await Order.findOne({ paymentReference: reference });
 
       if (!order) {
@@ -281,7 +407,6 @@ export const paystackWebhook = async (req: Request, res: Response) => {
         return res.status(404).json({ success: false, message: 'Order not found' });
       }
 
-      // Update order payment status
       if (order.paymentStatus !== 'paid') {
         order.paymentStatus = 'paid';
         if (order.orderStatus !== 'ready_for_processing') {
@@ -297,7 +422,6 @@ export const paystackWebhook = async (req: Request, res: Response) => {
         order.providerResponse = event.data;
         await order.save();
 
-        // Send payment success email
         const user = await User.findById(order.user);
         if (user) {
           await emailService.sendPaymentSuccessEmail(user.email, {
@@ -323,10 +447,6 @@ export const paystackWebhook = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Verify payment manually
- * GET /api/orders/paystack/verify/:reference
- */
 export const verifyPayment = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -339,18 +459,15 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Payment reference is required' });
     }
 
-    // Verify with Paystack
     const paystackResponse = await paystackService.verifyTransaction(reference);
 
     if (paystackResponse.status && paystackResponse.data.status === 'success') {
-      // Find and update order
       const order = await Order.findOne({ paymentReference: reference });
 
       if (!order) {
         return res.status(404).json({ success: false, message: 'Order not found' });
       }
 
-      // Ensure the order belongs to the user
       if (order.user.toString() !== (req.user._id as mongoose.Types.ObjectId).toString()) {
         return res.status(403).json({ success: false, message: 'Unauthorized access to order' });
       }
@@ -370,7 +487,6 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
         order.providerResponse = paystackResponse.data;
         await order.save();
 
-        // Send payment success email
         const user = await User.findById(order.user);
         if (user) {
           await emailService.sendPaymentSuccessEmail(user.email, {
@@ -406,10 +522,6 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
   }
 };
 
-/**
- * Get all orders for the authenticated user
- * GET /api/orders
- */
 export const getUserOrders = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -420,13 +532,30 @@ export const getUserOrders = async (req: AuthRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const orders = await Order.find({ user: req.user._id })
+    // Riders and other assigned users should also see orders they've been assigned to.
+    const assignedTo = req.query.assignedTo as string | undefined;
+
+    const baseFilter: any = {};
+    if (assignedTo && req.user.role === 'admin') {
+      // Admins can query orders assigned to a specific user
+      if (mongoose.Types.ObjectId.isValid(assignedTo)) {
+        baseFilter['assignedRider.rider'] = new mongoose.Types.ObjectId(assignedTo);
+      }
+    } else {
+      // Default: return orders placed by the user OR orders assigned to them (for riders)
+      baseFilter.$or = [
+        { user: req.user._id },
+        { 'assignedRider.rider': req.user._id }
+      ];
+    }
+
+    const orders = await Order.find(baseFilter)
       .populate('items.product', 'name images')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const totalOrders = await Order.countDocuments({ user: req.user._id });
+    const totalOrders = await Order.countDocuments(baseFilter);
 
     return res.json({
       success: true,
@@ -450,10 +579,6 @@ export const getUserOrders = async (req: AuthRequest, res: Response) => {
   }
 };
 
-/**
- * Get single order by ID
- * GET /api/orders/:id
- */
 export const getOrderById = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -468,7 +593,6 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // Ensure the order belongs to the user (unless admin)
     if (order.user._id.toString() !== (req.user._id as mongoose.Types.ObjectId).toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Unauthorized access to order' });
     }
@@ -487,10 +611,6 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
   }
 };
 
-/**
- * Get order by order number
- * GET /api/orders/number/:orderNumber
- */
 export const getOrderByNumber = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -505,7 +625,6 @@ export const getOrderByNumber = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // Ensure the order belongs to the user (unless admin)
     if (order.user._id.toString() !== (req.user._id as mongoose.Types.ObjectId).toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Unauthorized access to order' });
     }
@@ -524,10 +643,6 @@ export const getOrderByNumber = async (req: AuthRequest, res: Response) => {
   }
 };
 
-/**
- * Cancel order (Admin only)
- * POST /api/orders/:id/cancel
- */
 export const cancelOrder = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {

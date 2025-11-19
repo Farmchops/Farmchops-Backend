@@ -39,25 +39,53 @@ import adminManagementRoutes from './routes/adminManagementRoutes';
 import ordersRoutes from './routes/ordersRoutes';
 import adminOrderRoutes from './routes/adminOrderRoutes';
 import riderOrderRoutes from './routes/riderOrderRoutes';
+import adminDealRoutes from './routes/adminDealRoutes';
+import dealRoutes from './routes/dealRoutes';
+import vendorRoutes from './routes/vendorRoutes';
+import adminVendorRoutes from './routes/adminVendorRoutes';
+import groupOrderRoutes from './routes/groupOrderRoutes';
+import adminGroupOrderRoutes from './routes/adminGroupOrderRoutes';
 // import placesRoutes from './routes/placesRoutes';
 
 
 const PORT = Number(process.env.PORT) || 5000;
 
 
-app.use(cors({
-  origin: [ 'http://localhost:5173',
-    'http://localhost:3000',
-    'https://farmchops.com',
-    'https://www.farmchops.com',
-    'https://api.farmchops.com',
-    'https://staging.farmchops.com',  // ADD THIS
-    'http://staging.farmchops.com'
-  ], 
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// CORS configuration
+// In development allow the frontend origin(s) flexibly to avoid preflight issues (helps local dev).
+if (process.env.NODE_ENV !== 'production') {
+  app.use(cors({
+    origin: (origin, cb) => cb(null, true), // allow any origin in dev
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+  }));
+  app.use((req, res, next) => {
+    // Log incoming requests in dev to help debug CORS/preflight issues
+    // eslint-disable-next-line no-console
+    console.debug('[DEV] Incoming request:', req.method, req.originalUrl, 'Origin:', req.headers.origin);
+    next();
+  });
+} else {
+  app.use(cors({
+    origin: [ 'http://localhost:5173',
+      'http://localhost:5000',
+      'http://localhost:3000',
+      'https://farmchops.com',
+      'https://www.farmchops.com',
+      'https://api.farmchops.com',
+      'https://staging.farmchops.com',
+      'http://staging.farmchops.com'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+  }));
+}
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }  // Add this!
@@ -76,8 +104,14 @@ app.use('/api/cart', cart)
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/management', adminManagementRoutes);
 app.use('/api/orders', ordersRoutes);
+app.use('/api/admin/deals', adminDealRoutes);
 app.use('/api/admin', adminOrderRoutes);
 app.use('/api/rider', riderOrderRoutes);
+app.use('/api/deals', dealRoutes);
+app.use('/api/vendors', vendorRoutes);
+app.use('/api/admin/vendors', adminVendorRoutes);
+app.use('/api/group-orders', groupOrderRoutes);
+app.use('/api/admin', adminGroupOrderRoutes);
 // app.use('/api/places', placesRoutes);
 
 

@@ -1,5 +1,6 @@
 import { AuthRequest } from '../middleware/auth';
 import Cart, { ICart, ICartItem } from '../models/Cart';
+import { Deal } from '../models/Deal';
 import { IProduct } from '../models/Product';
 
 export interface SessionCart {
@@ -89,8 +90,31 @@ async function mergeSessionCartIntoUserCart(
   userCart: ICart
 ): Promise<ICart> {
   for (const sessionItem of sessionCart.items) {
+    // If session item indicates a deal tier but doesn't have a dealId,
+    // try to resolve an active deal for the product and attach its id.
+    if (!sessionItem.dealId && sessionItem.tierName && sessionItem.tierName.toLowerCase().includes('deal')) {
+      try {
+        const now = new Date();
+        const activeDeal = await Deal.findOne({
+          product: sessionItem.productId,
+          status: { $in: ['active'] },
+          startAt: { $lte: now },
+          $or: [ { endAt: { $exists: false } }, { endAt: null }, { endAt: { $gte: now } } ]
+        }).sort({ startAt: -1, createdAt: -1 });
+
+        if (activeDeal) {
+          sessionItem.dealId = String(activeDeal._id);
+        }
+      } catch (e) {
+        console.error('Error resolving active deal during session->user cart merge:', e);
+      }
+    }
     const existingItemIndex = userCart.items.findIndex(
-      item => item.productId === sessionItem.productId && item.priceType === sessionItem.priceType && item.tierName === sessionItem.tierName
+      item =>
+        item.productId === sessionItem.productId &&
+        item.priceType === sessionItem.priceType &&
+        item.tierName === sessionItem.tierName &&
+        item.dealId === sessionItem.dealId
     );
 
     if (existingItemIndex > -1 && userCart.items[existingItemIndex]) {

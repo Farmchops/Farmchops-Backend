@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { validationResult } from 'express-validator';
 import { Product } from '../models/Product';
+import { Deal } from '../models/Deal';
 import { AuthRequest } from '../middleware/auth';
 import {
   getCart,
@@ -36,8 +37,32 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
     unit,
     priceType,
     minQuantity,
-    tierName
+    tierName,
+    dealId
   } = req.body;
+
+  let normalizedDealId = dealId ? String(dealId) : undefined;
+
+    // Server-side fallback: if frontend selected a deal-specific tier (e.g. 'deal-of-the-day')
+    // but didn't send a dealId, try to find an active deal for this product and attach it.
+    // This prevents clients that omit the dealId from bypassing deal reservation logic.
+    if (!normalizedDealId && tierName && tierName.toLowerCase().includes('deal')) {
+      try {
+        const now = new Date();
+        const activeDeal = await Deal.findOne({
+          product: productId,
+          status: { $in: ['active'] },
+          startAt: { $lte: now },
+          $or: [ { endAt: { $exists: false } }, { endAt: null }, { endAt: { $gte: now } } ]
+        }).sort({ startAt: -1, createdAt: -1 });
+
+        if (activeDeal) {
+          normalizedDealId = String(activeDeal._id);
+        }
+      } catch (e) {
+        console.error('Error finding active deal for product during addToCart fallback:', e);
+      }
+    }
 
   try {
     // Still validate product exists and is available
@@ -74,7 +99,11 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
 
     // Use the tier information sent from frontend, don't recalculate
     const existingIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType && item.tierName === tierName
+      (item) =>
+        item.productId === productId &&
+        item.priceType === priceType &&
+        item.tierName === tierName &&
+        item.dealId === normalizedDealId
     );
 
     if (existingIndex > -1 && cart.items[existingIndex]) {
@@ -98,6 +127,7 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
         priceType,
         minQuantity,
         tierName,
+        dealId: normalizedDealId,
       });
     }
 
@@ -162,8 +192,13 @@ export const updateCartItem = async (req: AuthRequest, res: Response): Promise<R
   try {
     const cart = await getCart(req);
 
+    const normalizedDealId = req.body.dealId ? String(req.body.dealId) : undefined;
     const itemIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType && item.tierName === (req.body.tierName || undefined)
+      (item) =>
+        item.productId === productId &&
+        item.priceType === priceType &&
+        item.tierName === (req.body.tierName || undefined) &&
+        item.dealId === normalizedDealId
     );
 
     if (itemIndex === -1) {
@@ -262,8 +297,13 @@ export const removeCartItem = async (req: AuthRequest, res: Response): Promise<R
   try {
     const cart = await getCart(req);
 
+    const normalizedDealId = req.body.dealId ? String(req.body.dealId) : undefined;
     const itemIndex = cart.items.findIndex(
-      (item) => item.productId === productId && item.priceType === priceType && item.tierName === (req.body.tierName || undefined)
+      (item) =>
+        item.productId === productId &&
+        item.priceType === priceType &&
+        item.tierName === (req.body.tierName || undefined) &&
+        item.dealId === normalizedDealId
     );
 
     if (itemIndex === -1) {

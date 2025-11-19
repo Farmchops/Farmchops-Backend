@@ -36,7 +36,7 @@ class PaystackService {
     try {
       const response = await this.api.post('/transaction/initialize', {
         email,
-        amount: Math.round(amount), // Ensure it's an integer
+        amount: Math.round(amount * 100), // Paystack expects amount in kobo
         reference,
         metadata,
         callback_url: process.env.PAYSTACK_CALLBACK_URL || `${process.env.FRONTEND_URL}/order/success`,
