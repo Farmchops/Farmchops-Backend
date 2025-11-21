@@ -84,9 +84,7 @@ export class GroupOrderService {
       product: {
         _id: product._id,
         name: product.name,
-        images: product.images,
-        bulkPrice: product.groupConfig.bulkPricePerUnit,
-        regularPrice: product.pricing.retail.price
+        images: product.images
       },
       minParticipants: product.groupConfig.minParticipants,
       maxParticipants: product.groupConfig.maxParticipants,

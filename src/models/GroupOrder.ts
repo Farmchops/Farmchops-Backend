@@ -57,8 +57,6 @@ export interface IGroupOrder extends Document {
     _id: mongoose.Types.ObjectId;
     name: string;
     images: string[];
-    bulkPrice: number; // Price per kg/unit for group buy
-    regularPrice: number; // Regular retail price
   };
 
   // Configuration from admin
@@ -227,9 +225,7 @@ const GroupOrderSchema = new Schema<IGroupOrder>({
       required: true
     },
     name: { type: String, required: true },
-    images: [{ type: String }],
-    bulkPrice: { type: Number, required: true },
-    regularPrice: { type: Number, required: true }
+    images: [{ type: String }]
   },
   minParticipants: {
     type: Number,
