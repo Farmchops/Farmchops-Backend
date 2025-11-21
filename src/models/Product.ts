@@ -321,10 +321,15 @@ ProductSchema.pre<IProduct>('validate', function(next) {
   }
 
   // Auto-update status based on stock
-  if (this.inventory.availableStock <= 0) {
-    this.set('status', 'out_of_stock');
-  } else if (this.get('status') === 'out_of_stock' && this.inventory.availableStock > 0) {
-    this.set('status', 'active');
+  // Auto-update status based on stock, but do not override an explicit/manual status change
+  const statusManuallyModified = this.isModified('status');
+
+  if (!statusManuallyModified) {
+    if (this.inventory.availableStock <= 0) {
+      this.set('status', 'out_of_stock');
+    } else if (this.get('status') === 'out_of_stock' && this.inventory.availableStock > 0) {
+      this.set('status', 'active');
+    }
   }
 
   next();
