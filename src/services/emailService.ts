@@ -571,6 +571,235 @@ The Farmchops Team
       return false;
     }
   }
+
+  // GROUP ORDER EMAILS
+
+  async sendGroupReadyEmail(
+    email: string,
+    data: {
+      groupId: string;
+      productName: string;
+      quantity: number;
+      amount: number;
+      checkoutDeadline: string;
+      checkoutLink: string;
+    }
+  ): Promise<boolean> {
+    try {
+      const deadlineDate = new Date(data.checkoutDeadline);
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 30px 20px; }
+        .alert-box { background-color: #fff3cd; border: 2px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .group-details { background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .cta-button { display: inline-block; background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; color: #6c757d; }
+        .deadline { font-size: 18px; font-weight: bold; color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Group is Full! Checkout Now</h1>
+        </div>
+        <div class="content">
+            <div class="alert-box">
+                <h2>Action Required - Checkout Deadline!</h2>
+                <p>Your group buying session for <strong>${data.productName}</strong> has reached minimum participants!</p>
+                <p class="deadline">Checkout Deadline: ${deadlineDate.toLocaleString()}</p>
+            </div>
+
+            <div class="group-details">
+                <p><strong>Group ID:</strong> ${data.groupId}</p>
+                <p><strong>Product:</strong> ${data.productName}</p>
+                <p><strong>Your Quantity:</strong> ${data.quantity} units</p>
+                <p><strong>Your Amount:</strong> ₦${(data.amount / 100).toFixed(2)}</p>
+            </div>
+
+            <p><strong>What happens next?</strong></p>
+            <ol>
+                <li>Click the button below to checkout</li>
+                <li>Enter your delivery information</li>
+                <li>Complete payment within 48 hours</li>
+                <li>Your order will be created and processed</li>
+            </ol>
+
+            <p style="text-align: center;">
+                <a href="${data.checkoutLink}" class="cta-button">Checkout Now</a>
+            </p>
+
+            <p><strong>Important:</strong> If you don't checkout within 48 hours, your reservation will be cancelled.</p>
+
+            <p>Best regards,<br>The Farmchops Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 Farmchops. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+      `;
+
+      const text = `
+Group is Full! Checkout Now
+
+Your group buying session for ${data.productName} has reached minimum participants!
+
+Group ID: ${data.groupId}
+Product: ${data.productName}
+Your Quantity: ${data.quantity} units
+Your Amount: ₦${(data.amount / 100).toFixed(2)}
+
+CHECKOUT DEADLINE: ${deadlineDate.toLocaleString()}
+
+What happens next?
+1. Visit the checkout link
+2. Enter your delivery information
+3. Complete payment within 48 hours
+4. Your order will be created and processed
+
+Checkout Link: ${data.checkoutLink}
+
+Important: If you don't checkout within 48 hours, your reservation will be cancelled.
+
+Best regards,
+The Farmchops Team
+      `;
+
+      const info = await this.getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || `"Farmchops" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: `Group Ready - Checkout Now! (${data.groupId})`,
+        text,
+        html,
+      });
+
+      console.log("Group ready email sent:", info.messageId);
+      return true;
+    } catch (error) {
+      console.error("Error sending group ready email:", error);
+      return false;
+    }
+  }
+
+  async sendWaitlistPromotionEmail(
+    email: string,
+    data: {
+      groupId: string;
+      productName: string;
+      quantity: number;
+      amount: number;
+      checkoutDeadline: string;
+      checkoutLink: string;
+    }
+  ): Promise<boolean> {
+    try {
+      const deadlineDate = new Date(data.checkoutDeadline);
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
+        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 30px 20px; }
+        .alert-box { background-color: #d1ecf1; border: 2px solid #17a2b8; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .group-details { background-color: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .cta-button { display: inline-block; background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; color: #6c757d; }
+        .deadline { font-size: 18px; font-weight: bold; color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>You've Been Promoted from Waitlist!</h1>
+        </div>
+        <div class="content">
+            <div class="alert-box">
+                <h2>A Spot Opened Up - Checkout Now!</h2>
+                <p>Great news! A spot has opened up in the group for <strong>${data.productName}</strong> and you've been promoted!</p>
+                <p class="deadline">Checkout Deadline: ${deadlineDate.toLocaleString()}</p>
+                <p><strong>You have 24 hours to complete checkout.</strong></p>
+            </div>
+
+            <div class="group-details">
+                <p><strong>Group ID:</strong> ${data.groupId}</p>
+                <p><strong>Product:</strong> ${data.productName}</p>
+                <p><strong>Your Quantity:</strong> ${data.quantity} units</p>
+                <p><strong>Your Amount:</strong> ₦${(data.amount / 100).toFixed(2)}</p>
+            </div>
+
+            <p><strong>What to do now:</strong></p>
+            <ol>
+                <li>Click the button below to checkout</li>
+                <li>Enter your delivery information</li>
+                <li>Complete payment within 24 hours</li>
+                <li>Your order will be created</li>
+            </ol>
+
+            <p style="text-align: center;">
+                <a href="${data.checkoutLink}" class="cta-button">Checkout Now</a>
+            </p>
+
+            <p><strong>Important:</strong> If you don't checkout within 24 hours, this spot will be offered to the next person.</p>
+
+            <p>Best regards,<br>The Farmchops Team</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 Farmchops. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+      `;
+
+      const text = `
+You've Been Promoted from Waitlist!
+
+Great news! A spot has opened up in the group for ${data.productName}!
+
+Group ID: ${data.groupId}
+Product: ${data.productName}
+Your Quantity: ${data.quantity} units
+Your Amount: ₦${(data.amount / 100).toFixed(2)}
+
+CHECKOUT DEADLINE: ${deadlineDate.toLocaleString()}
+You have 24 hours to complete checkout.
+
+What to do now:
+1. Visit the checkout link
+2. Enter your delivery information
+3. Complete payment within 24 hours
+
+Checkout Link: ${data.checkoutLink}
+
+Important: If you don't checkout within 24 hours, this spot will be offered to the next person.
+
+Best regards,
+The Farmchops Team
+      `;
+
+      const info = await this.getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || `"Farmchops" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: `Promoted from Waitlist - Checkout Now! (${data.groupId})`,
+        text,
+        html,
+      });
+
+      console.log("Waitlist promotion email sent:", info.messageId);
+      return true;
+    } catch (error) {
+      console.error("Error sending waitlist promotion email:", error);
+      return false;
+    }
+  }
 }
 
 // Export singleton instance

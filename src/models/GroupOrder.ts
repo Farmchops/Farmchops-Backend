@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 
+// Participant in the group (can be reserved or paid)
 export interface IGroupParticipant {
   id: string;
   userId: mongoose.Types.ObjectId;
@@ -11,43 +12,142 @@ export interface IGroupParticipant {
   };
   quantity: number;
   amount: number;
-  paymentStatus: 'paid';
-  paymentReference: string;
-  paidAt: Date;
-  deliveryInfo: {
+
+  // Participant status
+  status: 'reserved' | 'paid' | 'removed';
+
+  // Timestamps
+  reservedAt: Date;
+  paidAt?: Date;
+  checkoutDeadline?: Date;
+  removedAt?: Date;
+
+  // Payment details (only after checkout)
+  paymentReference?: string;
+  deliveryInfo?: {
     address: string;
     city: string;
     state: string;
     phoneNumber: string;
   };
-  deliveryFee: number;
+  deliveryFee?: number;
   orderId?: mongoose.Types.ObjectId;
+}
+
+// Waitlist participant
+export interface IWaitlistParticipant {
+  userId: mongoose.Types.ObjectId;
+  user: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  };
+  quantity: number;
   joinedAt: Date;
+  notifiedAt?: Date;
+  promotionDeadline?: Date; // 24 hours to checkout after promotion
 }
 
 export interface IGroupOrder extends Document {
   groupId: string;
+
+  // Product info
   product: {
     _id: mongoose.Types.ObjectId;
     name: string;
     images: string[];
+    bulkPrice: number; // Price per kg/unit for group buy
+    regularPrice: number; // Regular retail price
   };
-  totalSlots: number;
-  quantityPerSlot: number;
-  pricePerSlot: number;
+
+  // Configuration from admin
+  minParticipants: number;
+  maxParticipants: number;
+  quantityPerPerson: {
+    min: number;
+    max: number;
+  };
+  targetQuantity: number; // e.g., 50kg total
+  bulkPricePerUnit: number; // e.g., ₦500/kg
+  deadlineHours: number; // Hours from creation before group expires (e.g., 168 = 7 days)
+  maxActiveGroups: number; // How many groups can be active for this product
+
+  // Phase tracking
+  phase: 'filling' | 'checkout_window' | 'confirmed' | 'expired' | 'cancelled';
+
+  // Checkout window (48 hours after group fills)
+  checkoutWindowOpensAt?: Date;
+  checkoutWindowClosesAt?: Date;
+  checkoutWindowDurationHours: number; // Default: 48 hours
+
+  // Participants
   participants: IGroupParticipant[];
-  filledSlots: number;
-  status: 'active' | 'confirmed' | 'cancelled';
-  confirmedAt?: Date;
+  reservedSlots: number; // Count of 'reserved' participants
+  paidSlots: number; // Count of 'paid' participants
+
+  // Waitlist
+  waitlist: IWaitlistParticipant[];
+
+  // Shareable link
+  shareableCode: string;
+
+  // Status tracking
+  groupFilledAt?: Date; // When minimum participants was reached
+  confirmedAt?: Date; // When all participants paid
+  expiredAt?: Date; // When deadline passed
   cancelledAt?: Date;
   cancelledReason?: string;
+
+  // Metadata
   createdAt: Date;
   updatedAt: Date;
+
+  // Methods
+  getTotalQuantity(): number;
+  getReservedCount(): number;
+  getPaidCount(): number;
+  canAcceptMoreParticipants(): boolean;
+  isGroupFilled(): boolean;
+  shouldOpenCheckoutWindow(): boolean;
+  isCheckoutWindowOpen(): boolean;
+  isCheckoutWindowExpired(): boolean;
+  getShareableLink(): string;
 }
 
 export interface IGroupOrderModel extends Model<IGroupOrder> {
   generateGroupId(): Promise<string>;
+  generateShareableCode(): string;
 }
+
+const WaitlistParticipantSchema = new Schema<IWaitlistParticipant>({
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  user: {
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    email: { type: String, required: true },
+    phone: { type: String, required: true }
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  joinedAt: {
+    type: Date,
+    default: Date.now
+  },
+  notifiedAt: {
+    type: Date
+  },
+  promotionDeadline: {
+    type: Date
+  }
+}, { _id: false });
 
 const GroupParticipantSchema = new Schema<IGroupParticipant>({
   id: {
@@ -75,39 +175,42 @@ const GroupParticipantSchema = new Schema<IGroupParticipant>({
     required: true,
     min: 0
   },
-  paymentStatus: {
+  status: {
     type: String,
-    enum: ['paid'],
-    default: 'paid',
+    enum: ['reserved', 'paid', 'removed'],
+    default: 'reserved',
     required: true
   },
-  paymentReference: {
-    type: String,
-    required: true
-  },
-  paidAt: {
+  reservedAt: {
     type: Date,
     required: true,
     default: Date.now
   },
+  paidAt: {
+    type: Date
+  },
+  checkoutDeadline: {
+    type: Date
+  },
+  removedAt: {
+    type: Date
+  },
+  paymentReference: {
+    type: String
+  },
   deliveryInfo: {
-    address: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    phoneNumber: { type: String, required: true }
+    address: { type: String },
+    city: { type: String },
+    state: { type: String },
+    phoneNumber: { type: String }
   },
   deliveryFee: {
     type: Number,
-    required: true,
     min: 0
   },
   orderId: {
     type: Schema.Types.ObjectId,
     ref: 'Order'
-  },
-  joinedAt: {
-    type: Date,
-    default: Date.now
   }
 }, { _id: false });
 
@@ -124,41 +227,104 @@ const GroupOrderSchema = new Schema<IGroupOrder>({
       required: true
     },
     name: { type: String, required: true },
-    images: [{ type: String }]
+    images: [{ type: String }],
+    bulkPrice: { type: Number, required: true },
+    regularPrice: { type: Number, required: true }
   },
-  totalSlots: {
+  minParticipants: {
     type: Number,
     required: true,
     min: 2,
-    max: 100
+    default: 5
   },
-  quantityPerSlot: {
+  maxParticipants: {
+    type: Number,
+    required: true,
+    min: 2,
+    max: 100,
+    default: 10
+  },
+  quantityPerPerson: {
+    min: {
+      type: Number,
+      required: true,
+      default: 5
+    },
+    max: {
+      type: Number,
+      required: true,
+      default: 15
+    }
+  },
+  targetQuantity: {
     type: Number,
     required: true,
     min: 1
   },
-  pricePerSlot: {
+  bulkPricePerUnit: {
     type: Number,
     required: true,
     min: 0
+  },
+  deadlineHours: {
+    type: Number,
+    required: true,
+    default: 168 // 7 days
+  },
+  maxActiveGroups: {
+    type: Number,
+    required: true,
+    default: 3
+  },
+  phase: {
+    type: String,
+    enum: ['filling', 'checkout_window', 'confirmed', 'expired', 'cancelled'],
+    default: 'filling',
+    required: true
+  },
+  checkoutWindowOpensAt: {
+    type: Date
+  },
+  checkoutWindowClosesAt: {
+    type: Date
+  },
+  checkoutWindowDurationHours: {
+    type: Number,
+    required: true,
+    default: 48
   },
   participants: {
     type: [GroupParticipantSchema],
     default: []
   },
-  filledSlots: {
+  reservedSlots: {
     type: Number,
     required: true,
     default: 0,
     min: 0
   },
-  status: {
+  paidSlots: {
+    type: Number,
+    required: true,
+    default: 0,
+    min: 0
+  },
+  waitlist: {
+    type: [WaitlistParticipantSchema],
+    default: []
+  },
+  shareableCode: {
     type: String,
-    enum: ['active', 'confirmed', 'cancelled'],
-    default: 'active',
-    required: true
+    required: true,
+    unique: true
+  },
+  groupFilledAt: {
+    type: Date
   },
   confirmedAt: {
+    type: Date
+  },
+  expiredAt: {
     type: Date
   },
   cancelledAt: {
@@ -174,11 +340,61 @@ const GroupOrderSchema = new Schema<IGroupOrder>({
 });
 
 // Indexes
-GroupOrderSchema.index({ 'product._id': 1, status: 1 });
-GroupOrderSchema.index({ status: 1, createdAt: -1 });
+GroupOrderSchema.index({ 'product._id': 1, phase: 1 });
+GroupOrderSchema.index({ phase: 1, createdAt: -1 });
 GroupOrderSchema.index({ 'participants.userId': 1 });
+GroupOrderSchema.index({ shareableCode: 1 });
+GroupOrderSchema.index({ checkoutWindowClosesAt: 1 });
 
-// Static method to generate unique group ID
+// Instance methods
+GroupOrderSchema.methods.getTotalQuantity = function(): number {
+  return this.participants
+    .filter((p: IGroupParticipant) => p.status !== 'removed')
+    .reduce((sum: number, p: IGroupParticipant) => sum + p.quantity, 0);
+};
+
+GroupOrderSchema.methods.getReservedCount = function(): number {
+  return this.participants.filter((p: IGroupParticipant) => p.status === 'reserved').length;
+};
+
+GroupOrderSchema.methods.getPaidCount = function(): number {
+  return this.participants.filter((p: IGroupParticipant) => p.status === 'paid').length;
+};
+
+GroupOrderSchema.methods.canAcceptMoreParticipants = function(): boolean {
+  const activeParticipants = this.participants.filter((p: IGroupParticipant) => p.status !== 'removed').length;
+  return activeParticipants < this.maxParticipants && this.phase === 'filling';
+};
+
+GroupOrderSchema.methods.isGroupFilled = function(): boolean {
+  const activeParticipants = this.participants.filter((p: IGroupParticipant) => p.status !== 'removed').length;
+  return activeParticipants >= this.minParticipants;
+};
+
+GroupOrderSchema.methods.shouldOpenCheckoutWindow = function(): boolean {
+  return this.isGroupFilled() && this.phase === 'filling' && !this.checkoutWindowOpensAt;
+};
+
+GroupOrderSchema.methods.isCheckoutWindowOpen = function(): boolean {
+  if (!this.checkoutWindowOpensAt || !this.checkoutWindowClosesAt) {
+    return false;
+  }
+  const now = new Date();
+  return now >= this.checkoutWindowOpensAt && now <= this.checkoutWindowClosesAt;
+};
+
+GroupOrderSchema.methods.isCheckoutWindowExpired = function(): boolean {
+  if (!this.checkoutWindowClosesAt) {
+    return false;
+  }
+  return new Date() > this.checkoutWindowClosesAt;
+};
+
+GroupOrderSchema.methods.getShareableLink = function(): string {
+  return `${process.env.FRONTEND_URL}/group-buy/${this.shareableCode}`;
+};
+
+// Static methods
 GroupOrderSchema.statics.generateGroupId = async function(): Promise<string> {
   const prefix = 'GRP';
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -200,14 +416,25 @@ GroupOrderSchema.statics.generateGroupId = async function(): Promise<string> {
   return groupId!;
 };
 
+GroupOrderSchema.statics.generateShareableCode = function(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let code = '';
+  for (let i = 0; i < 10; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
 // Pre-save validation
 GroupOrderSchema.pre('save', function(next) {
-  if (this.filledSlots > this.totalSlots) {
-    return next(new Error('Filled slots cannot exceed total slots'));
-  }
+  // Update counts
+  this.reservedSlots = this.getReservedCount();
+  this.paidSlots = this.getPaidCount();
 
-  if (this.participants.length !== this.filledSlots) {
-    return next(new Error('Participants count must match filled slots'));
+  // Validate participant counts
+  const activeParticipants = this.participants.filter(p => p.status !== 'removed').length;
+  if (activeParticipants > this.maxParticipants) {
+    return next(new Error('Active participants cannot exceed maximum participants'));
   }
 
   next();

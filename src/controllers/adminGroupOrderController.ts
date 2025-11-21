@@ -14,7 +14,16 @@ export const configureGroupBuying = async (req: AuthRequest, res: Response): Pro
     const { productId } = req.params;
     // Support both 'enabled' (from frontend) and 'groupBuyingEnabled' (backend standard)
     const groupBuyingEnabled = req.body.groupBuyingEnabled ?? req.body.enabled;
-    const { totalSlots, quantityPerSlot, pricePerSlot, maxActiveGroups = 5 } = req.body;
+    const {
+      minParticipants,
+      maxParticipants,
+      quantityPerPerson,
+      targetQuantity,
+      bulkPricePerUnit,
+      deadlineHours = 168, // Default: 7 days
+      maxActiveGroups = 3,
+      checkoutWindowHours = 48 // Default: 48 hours
+    } = req.body;
 
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
       return res.status(400).json({
@@ -36,39 +45,81 @@ export const configureGroupBuying = async (req: AuthRequest, res: Response): Pro
 
     if (groupBuyingEnabled) {
       // Validate configuration
-      if (!totalSlots || !quantityPerSlot || !pricePerSlot) {
+      if (!minParticipants || !maxParticipants || !quantityPerPerson || !targetQuantity || !bulkPricePerUnit) {
         return res.status(400).json({
           success: false,
-          message: 'Total slots, quantity per slot, and price per slot are required when enabling group buying'
+          message: 'minParticipants, maxParticipants, quantityPerPerson, targetQuantity, and bulkPricePerUnit are required when enabling group buying'
         });
       }
 
-      if (totalSlots < 2 || totalSlots > 100) {
+      if (minParticipants < 2 || minParticipants > maxParticipants) {
         return res.status(400).json({
           success: false,
-          message: 'Total slots must be between 2 and 100'
+          message: 'minParticipants must be at least 2 and not greater than maxParticipants'
         });
       }
 
-      if (quantityPerSlot < 1) {
+      if (maxParticipants < 2 || maxParticipants > 100) {
         return res.status(400).json({
           success: false,
-          message: 'Quantity per slot must be at least 1'
+          message: 'maxParticipants must be between 2 and 100'
         });
       }
 
-      if (pricePerSlot < 1) {
+      if (!quantityPerPerson.min || !quantityPerPerson.max || quantityPerPerson.min < 1) {
         return res.status(400).json({
           success: false,
-          message: 'Price per slot must be at least 1 kobo'
+          message: 'quantityPerPerson.min must be at least 1'
+        });
+      }
+
+      if (quantityPerPerson.max < quantityPerPerson.min) {
+        return res.status(400).json({
+          success: false,
+          message: 'quantityPerPerson.max must be greater than or equal to quantityPerPerson.min'
+        });
+      }
+
+      if (targetQuantity < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'targetQuantity must be at least 1'
+        });
+      }
+
+      if (bulkPricePerUnit < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'bulkPricePerUnit must be at least 1 kobo'
+        });
+      }
+
+      if (deadlineHours < 24) {
+        return res.status(400).json({
+          success: false,
+          message: 'deadlineHours must be at least 24 hours'
+        });
+      }
+
+      if (checkoutWindowHours < 24) {
+        return res.status(400).json({
+          success: false,
+          message: 'checkoutWindowHours must be at least 24 hours'
         });
       }
 
       product.groupConfig = {
-        totalSlots,
-        quantityPerSlot,
-        pricePerSlot,
-        maxActiveGroups
+        minParticipants,
+        maxParticipants,
+        quantityPerPerson: {
+          min: quantityPerPerson.min,
+          max: quantityPerPerson.max
+        },
+        targetQuantity,
+        bulkPricePerUnit,
+        deadlineHours,
+        maxActiveGroups,
+        checkoutWindowHours
       };
 
       await product.save();
@@ -111,12 +162,12 @@ export const configureGroupBuying = async (req: AuthRequest, res: Response): Pro
  */
 export const getAllGroups = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {
-    const { status, productId } = req.query;
+    const { phase, productId } = req.query;
 
     const query: Record<string, any> = {};
 
-    if (status && ['active', 'confirmed', 'cancelled'].includes(String(status))) {
-      query.status = status;
+    if (phase && ['filling', 'checkout_window', 'confirmed', 'expired', 'cancelled'].includes(String(phase))) {
+      query.phase = phase;
     }
 
     if (productId && mongoose.Types.ObjectId.isValid(String(productId))) {
@@ -127,30 +178,47 @@ export const getAllGroups = async (req: AuthRequest, res: Response): Promise<Res
 
     // Calculate stats
     const stats = {
-      totalActiveGroups: await GroupOrder.countDocuments({ status: 'active' }),
-      totalConfirmedGroups: await GroupOrder.countDocuments({ status: 'confirmed' }),
-      totalCancelledGroups: await GroupOrder.countDocuments({ status: 'cancelled' }),
+      totalFillingGroups: await GroupOrder.countDocuments({ phase: 'filling' }),
+      totalCheckoutWindowGroups: await GroupOrder.countDocuments({ phase: 'checkout_window' }),
+      totalConfirmedGroups: await GroupOrder.countDocuments({ phase: 'confirmed' }),
+      totalExpiredGroups: await GroupOrder.countDocuments({ phase: 'expired' }),
+      totalCancelledGroups: await GroupOrder.countDocuments({ phase: 'cancelled' }),
       totalRevenue: groups
-        .filter(g => g.status === 'confirmed')
-        .reduce((sum, g) => sum + (g.pricePerSlot * g.filledSlots), 0)
+        .filter(g => g.phase === 'confirmed')
+        .reduce((sum, g) => sum + g.participants
+          .filter(p => p.status === 'paid')
+          .reduce((pSum, p) => pSum + p.amount + (p.deliveryFee || 0), 0), 0)
     };
 
-    // Return both legacy top-level keys and nested `data` envelope for frontend compatibility
-    const mapped = groups.map(g => ({
-      groupId: g.groupId,
-      product: g.product,
-      totalSlots: g.totalSlots,
-      filledSlots: g.filledSlots,
-      quantityPerSlot: g.quantityPerSlot,
-      pricePerSlot: g.pricePerSlot,
-      status: g.status,
-      participantsCount: g.participants.length,
-      totalRevenue: g.pricePerSlot * g.filledSlots + g.participants.reduce((sum, p) => sum + p.deliveryFee, 0),
-      createdAt: g.createdAt,
-      confirmedAt: g.confirmedAt,
-      cancelledAt: g.cancelledAt,
-      cancelledReason: g.cancelledReason
-    }));
+    // Return mapped groups
+    const mapped = groups.map(g => {
+      const totalRevenue = g.participants
+        .filter(p => p.status === 'paid')
+        .reduce((sum, p) => sum + p.amount + (p.deliveryFee || 0), 0);
+
+      return {
+        groupId: g.groupId,
+        product: g.product,
+        minParticipants: g.minParticipants,
+        maxParticipants: g.maxParticipants,
+        reservedSlots: g.reservedSlots,
+        paidSlots: g.paidSlots,
+        quantityPerPerson: g.quantityPerPerson,
+        bulkPricePerUnit: g.bulkPricePerUnit,
+        phase: g.phase,
+        participantsCount: g.participants.filter(p => p.status !== 'removed').length,
+        waitlistCount: g.waitlist.length,
+        totalRevenue,
+        checkoutWindowOpensAt: g.checkoutWindowOpensAt,
+        checkoutWindowClosesAt: g.checkoutWindowClosesAt,
+        createdAt: g.createdAt,
+        groupFilledAt: g.groupFilledAt,
+        confirmedAt: g.confirmedAt,
+        expiredAt: g.expiredAt,
+        cancelledAt: g.cancelledAt,
+        cancelledReason: g.cancelledReason
+      };
+    });
 
     return res.json({
       success: true,
@@ -214,14 +282,30 @@ export const getGroupDetailsAdmin = async (req: AuthRequest, res: Response): Pro
       user: p.user,
       quantity: p.quantity,
       amount: p.amount,
-      paymentStatus: p.paymentStatus,
+      status: p.status,
       paymentReference: p.paymentReference,
+      reservedAt: p.reservedAt,
       paidAt: p.paidAt,
+      checkoutDeadline: p.checkoutDeadline,
+      removedAt: p.removedAt,
       deliveryInfo: p.deliveryInfo,
       deliveryFee: p.deliveryFee,
-      orderId: p.orderId,
-      joinedAt: p.joinedAt
+      orderId: p.orderId
     }));
+
+    // Waitlist details for admin
+    const waitlist = group.waitlist.map(w => ({
+      userId: w.userId,
+      user: w.user,
+      quantity: w.quantity,
+      joinedAt: w.joinedAt,
+      notifiedAt: w.notifiedAt,
+      promotionDeadline: w.promotionDeadline
+    }));
+
+    const totalRevenue = group.participants
+      .filter(p => p.status === 'paid')
+      .reduce((sum, p) => sum + p.amount + (p.deliveryFee || 0), 0);
 
     return res.json({
       success: true,
@@ -229,15 +313,27 @@ export const getGroupDetailsAdmin = async (req: AuthRequest, res: Response): Pro
         group: {
           groupId: group.groupId,
           product: group.product,
-          totalSlots: group.totalSlots,
-          filledSlots: group.filledSlots,
-          quantityPerSlot: group.quantityPerSlot,
-          pricePerSlot: group.pricePerSlot,
-          status: group.status,
+          minParticipants: group.minParticipants,
+          maxParticipants: group.maxParticipants,
+          quantityPerPerson: group.quantityPerPerson,
+          targetQuantity: group.targetQuantity,
+          bulkPricePerUnit: group.bulkPricePerUnit,
+          deadlineHours: group.deadlineHours,
+          checkoutWindowDurationHours: group.checkoutWindowDurationHours,
+          phase: group.phase,
+          reservedSlots: group.reservedSlots,
+          paidSlots: group.paidSlots,
           participants,
-          totalRevenue: group.pricePerSlot * group.filledSlots + group.participants.reduce((sum, p) => sum + p.deliveryFee, 0),
+          waitlist,
+          shareableCode: group.shareableCode,
+          shareableLink: group.getShareableLink(),
+          checkoutWindowOpensAt: group.checkoutWindowOpensAt,
+          checkoutWindowClosesAt: group.checkoutWindowClosesAt,
+          totalRevenue,
           createdAt: group.createdAt,
+          groupFilledAt: group.groupFilledAt,
           confirmedAt: group.confirmedAt,
+          expiredAt: group.expiredAt,
           cancelledAt: group.cancelledAt,
           cancelledReason: group.cancelledReason
         }
@@ -278,15 +374,18 @@ export const cancelGroup = async (req: AuthRequest, res: Response): Promise<Resp
 
     return res.json({
       success: true,
-      message: 'Group cancelled successfully. Refunds are being processed for all participants.',
+      message: 'Group cancelled successfully. Refunds are being processed for all paid participants.',
       data: {
         group: {
           groupId: group.groupId,
-          status: group.status,
+          phase: group.phase,
           cancelledAt: group.cancelledAt,
           cancelledReason: group.cancelledReason,
-          participantsCount: group.participants.length,
-          totalRefunds: group.participants.reduce((sum, p) => sum + p.amount + p.deliveryFee, 0)
+          participantsCount: group.participants.filter(p => p.status !== 'removed').length,
+          paidParticipantsCount: group.participants.filter(p => p.status === 'paid').length,
+          totalRefunds: group.participants
+            .filter(p => p.status === 'paid')
+            .reduce((sum, p) => sum + p.amount + (p.deliveryFee || 0), 0)
         }
       }
     });
@@ -342,10 +441,14 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<Resp
         group: {
           groupId: group.groupId,
           product: group.product,
-          totalSlots: group.totalSlots,
-          quantityPerSlot: group.quantityPerSlot,
-          pricePerSlot: group.pricePerSlot,
-          status: group.status,
+          minParticipants: group.minParticipants,
+          maxParticipants: group.maxParticipants,
+          quantityPerPerson: group.quantityPerPerson,
+          targetQuantity: group.targetQuantity,
+          bulkPricePerUnit: group.bulkPricePerUnit,
+          phase: group.phase,
+          shareableCode: group.shareableCode,
+          shareableLink: group.getShareableLink(),
           createdAt: group.createdAt
         }
       }

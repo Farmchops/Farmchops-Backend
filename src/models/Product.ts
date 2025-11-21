@@ -31,10 +31,17 @@ export interface IProduct extends Document {
 
   groupBuyingEnabled: boolean;
   groupConfig?: {
-    totalSlots: number;
-    quantityPerSlot: number;
-    pricePerSlot: number;
-    maxActiveGroups: number;
+    minParticipants: number; // e.g., 5 people minimum
+    maxParticipants: number; // e.g., 10 people maximum
+    quantityPerPerson: {
+      min: number; // e.g., 5kg minimum per person
+      max: number; // e.g., 15kg maximum per person
+    };
+    targetQuantity: number; // e.g., 50kg total target
+    bulkPricePerUnit: number; // e.g., ₦500/kg (bulk price)
+    deadlineHours: number; // e.g., 168 hours (7 days)
+    maxActiveGroups: number; // e.g., 3 active groups max
+    checkoutWindowHours: number; // e.g., 48 hours to checkout after group fills
   };
 
   tags: string[];
@@ -153,24 +160,54 @@ const ProductSchema: Schema = new Schema({
   },
 
   groupConfig: {
-    totalSlots: {
+    minParticipants: {
       type: Number,
-      min: [2, 'Group must have at least 2 slots'],
-      max: [100, 'Group cannot have more than 100 slots']
+      min: [2, 'Group must have at least 2 participants'],
+      default: 5
     },
-    quantityPerSlot: {
+    maxParticipants: {
       type: Number,
-      min: [1, 'Quantity per slot must be at least 1']
+      min: [2, 'Group must have at least 2 participants'],
+      max: [100, 'Group cannot have more than 100 participants'],
+      default: 10
     },
-    pricePerSlot: {
+    quantityPerPerson: {
+      min: {
+        type: Number,
+        min: [1, 'Minimum quantity per person must be at least 1'],
+        default: 5
+      },
+      max: {
+        type: Number,
+        min: [1, 'Maximum quantity per person must be at least 1'],
+        default: 15
+      }
+    },
+    targetQuantity: {
       type: Number,
-      min: [1, 'Price per slot must be at least 1 kobo']
+      min: [1, 'Target quantity must be at least 1'],
+      required: false
+    },
+    bulkPricePerUnit: {
+      type: Number,
+      min: [1, 'Bulk price must be at least 1 kobo'],
+      required: false
+    },
+    deadlineHours: {
+      type: Number,
+      min: [1, 'Deadline must be at least 1 hour'],
+      default: 168 // 7 days
     },
     maxActiveGroups: {
       type: Number,
       min: [1, 'Must allow at least 1 active group'],
       max: [50, 'Cannot have more than 50 active groups'],
-      default: 5
+      default: 3
+    },
+    checkoutWindowHours: {
+      type: Number,
+      min: [1, 'Checkout window must be at least 1 hour'],
+      default: 48
     }
   },
 
