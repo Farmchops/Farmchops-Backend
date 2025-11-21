@@ -307,14 +307,26 @@ ProductSchema.pre<IProduct>('validate', function(next) {
       }
     }
   }
-  
+
+  // Validate group buying configuration
+  if (this.groupBuyingEnabled && this.groupConfig) {
+    if (!this.groupConfig.bulkPricePerUnit || this.groupConfig.bulkPricePerUnit < 1) {
+      next(new Error('bulkPricePerUnit is required and must be at least 1 when group buying is enabled'));
+      return;
+    }
+    if (!this.groupConfig.targetQuantity || this.groupConfig.targetQuantity < 1) {
+      next(new Error('targetQuantity is required and must be at least 1 when group buying is enabled'));
+      return;
+    }
+  }
+
   // Auto-update status based on stock
   if (this.inventory.availableStock <= 0) {
     this.set('status', 'out_of_stock');
   } else if (this.get('status') === 'out_of_stock' && this.inventory.availableStock > 0) {
     this.set('status', 'active');
   }
-  
+
   next();
 });
 

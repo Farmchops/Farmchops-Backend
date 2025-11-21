@@ -63,6 +63,15 @@ export class GroupOrderService {
       throw new GroupOrderError('Group buying not enabled for this product', 400, 'GROUP_BUYING_DISABLED');
     }
 
+    // Validate required group config fields
+    if (!product.groupConfig.bulkPricePerUnit || product.groupConfig.bulkPricePerUnit < 1) {
+      throw new GroupOrderError('Product group configuration is incomplete: bulkPricePerUnit is required', 400, 'INVALID_GROUP_CONFIG');
+    }
+
+    if (!product.groupConfig.targetQuantity || product.groupConfig.targetQuantity < 1) {
+      throw new GroupOrderError('Product group configuration is incomplete: targetQuantity is required', 400, 'INVALID_GROUP_CONFIG');
+    }
+
     // Check if max active groups reached
     const activeGroupsCount = await GroupOrder.countDocuments({
       'product._id': productId,
