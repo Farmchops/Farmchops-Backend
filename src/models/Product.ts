@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-type ProductStatus = 'active' | 'inactive' | 'out_of_stock' | 'draft';
+type ProductStatus = 'active' | 'out_of_stock';
 
 export interface IProduct extends Document {
   status: ProductStatus;
@@ -213,8 +213,8 @@ const ProductSchema: Schema = new Schema({
 
   status: {
     type: String,
-    enum: ['active', 'inactive', 'draft', 'out_of_stock'],
-    default: 'draft'
+    enum: ['active', 'out_of_stock'],
+    default: 'active'
   },
   
   tags: [{

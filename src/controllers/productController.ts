@@ -299,7 +299,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       pricing,
       inventory,
       tags,
-      status = 'draft'
+      status = 'active'
     } = req.body;
 
      if (typeof pricing === 'string') {
