@@ -24,6 +24,9 @@ router.get('/', getProducts);
 // GET /api/products/search - Search products
 router.get('/search', searchProducts);
 
+// GET /api/products/admin - List all products for admin (includes all statuses)
+router.get('/admin', authenticateToken, requireAdmin, getProducts);
+
 // GET /api/products/admin/stats - Get product statistics (admin only)
 router.get('/admin/stats', authenticateToken, requireAdmin, getProductStats);
 

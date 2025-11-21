@@ -159,12 +159,10 @@ export const getProductBySlug = async (req: Request, res: Response): Promise<Res
   try {
     const { slug } = req.params;
 
-    const product = await Product.findOne({
+    const product = await Product.findOne({ 
       slug,
       ...(req.user?.role !== 'admin' && { status: 'active' })
-    })
-    .populate('category', 'name slug description')
-    .select('-__v');
+    }).populate('category', 'name slug description');
 
     if (!product) {
       return res.status(404).json({
@@ -299,7 +297,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       pricing,
       inventory,
       tags,
-      status = 'active'
+      status = 'draft'
     } = req.body;
 
      if (typeof pricing === 'string') {
