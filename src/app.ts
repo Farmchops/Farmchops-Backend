@@ -45,6 +45,8 @@ import vendorRoutes from './routes/vendorRoutes';
 import adminVendorRoutes from './routes/adminVendorRoutes';
 import groupOrderRoutes from './routes/groupOrderRoutes';
 import adminGroupOrderRoutes from './routes/adminGroupOrderRoutes';
+import walletRoutes from './routes/walletRoutes';
+import paymentLinkRoutes from './routes/paymentLinkRoutes';
 // import placesRoutes from './routes/placesRoutes';
 
 
@@ -112,6 +114,8 @@ app.use('/api/vendors', vendorRoutes);
 app.use('/api/admin/vendors', adminVendorRoutes);
 app.use('/api/group-orders', groupOrderRoutes);
 app.use('/api/admin', adminGroupOrderRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/payment-links', paymentLinkRoutes);
 // app.use('/api/places', placesRoutes);
 
 

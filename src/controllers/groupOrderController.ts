@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { GroupOrderService, GroupOrderError } from '../services/groupOrderService';
+import { GroupOrder } from '../models/GroupOrder';
 import mongoose from 'mongoose';
 import paystackService from '../config/paystack';
 import crypto from 'crypto';
@@ -576,6 +577,8 @@ export const getGroupByShareableCode = async (req: AuthRequest, res: Response): 
   try {
     const { shareableCode } = req.params;
 
+    console.log('[getGroupByShareableCode] Looking up code:', shareableCode);
+
     if (!shareableCode) {
       return res.status(400).json({
         success: false,
@@ -583,10 +586,16 @@ export const getGroupByShareableCode = async (req: AuthRequest, res: Response): 
       });
     }
 
-    const { GroupOrder } = await import('../models/GroupOrder');
-    const group = await GroupOrder.findOne({ shareableCode });
+    // Use the imported GroupOrder model directly
+    const group = await GroupOrder.findOne({ shareableCode: shareableCode.trim() });
+
+    console.log('[getGroupByShareableCode] Query result:', group ? `Found group ${group.groupId}` : 'Not found');
 
     if (!group) {
+      // Debug: List a few existing shareable codes
+      const sampleGroups = await GroupOrder.find({}, { shareableCode: 1, groupId: 1 }).limit(5);
+      console.log('[getGroupByShareableCode] Sample existing codes:', sampleGroups.map(g => g.shareableCode));
+
       return res.status(404).json({
         success: false,
         message: 'Group not found'
@@ -597,6 +606,7 @@ export const getGroupByShareableCode = async (req: AuthRequest, res: Response): 
       success: true,
       data: {
         groupId: group.groupId,
+        shareableCode: group.shareableCode,
         shareableLink: group.getShareableLink(),
         product: group.product,
         minParticipants: group.minParticipants,
@@ -611,6 +621,7 @@ export const getGroupByShareableCode = async (req: AuthRequest, res: Response): 
       }
     });
   } catch (error) {
+    console.error('[getGroupByShareableCode] Error:', error);
     return res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to fetch group'

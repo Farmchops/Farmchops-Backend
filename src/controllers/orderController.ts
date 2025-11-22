@@ -11,6 +11,9 @@ import paystackService from '../config/paystack';
 import crypto from 'crypto';
 import emailService from '../services/emailService';
 import User from '../models/User';
+import walletService from '../services/walletService';
+import { WalletTransaction } from '../models/WalletTransaction';
+import { PaymentLink } from '../models/PaymentLink';
 
 // Fee config (NGN in kobo)
 const BASE_FEE = 200; // base delivery fee
@@ -400,11 +403,62 @@ export const paystackWebhook = async (req: Request, res: Response) => {
     if (event.event === 'charge.success') {
       const { reference, metadata } = event.data;
 
+      // Handle wallet funding
+      if (metadata?.type === 'wallet_funding') {
+        const result = await walletService.completePendingFunding(reference);
+        if (result.success) {
+          console.log(`Wallet funding completed for reference ${reference}`);
+        } else {
+          console.error(`Wallet funding failed: ${result.error}`);
+        }
+        return res.status(200).json({ success: true });
+      }
+
+      // Handle payment link
+      if (metadata?.type === 'payment_link') {
+        const paymentLink = await PaymentLink.findOne({ paymentReference: reference });
+        if (paymentLink && paymentLink.status !== 'paid') {
+          paymentLink.status = 'paid';
+          paymentLink.paidAt = new Date();
+          paymentLink.paymentMethod = 'paystack';
+          await paymentLink.save();
+
+          // Credit the creator's wallet
+          const creator = await User.findById(paymentLink.createdBy);
+          if (creator) {
+            await walletService.creditWallet(
+              String(creator._id),
+              paymentLink.amount,
+              `Payment received via Pay-for-Me link: ${paymentLink.code}`,
+              reference
+            );
+          }
+
+          // If linked to an order, update payment status
+          if (paymentLink.orderId) {
+            await Order.updateOne(
+              { _id: paymentLink.orderId },
+              {
+                $set: {
+                  paymentStatus: 'paid',
+                  paymentMethod: 'payment_link',
+                  paymentReference: reference
+                }
+              }
+            );
+          }
+
+          console.log(`Payment link ${paymentLink.code} marked as paid`);
+        }
+        return res.status(200).json({ success: true });
+      }
+
+      // Handle regular order payment
       const order = await Order.findOne({ paymentReference: reference });
 
       if (!order) {
         console.error('Order not found for payment reference:', reference);
-        return res.status(404).json({ success: false, message: 'Order not found' });
+        return res.status(200).json({ success: true }); // Return 200 to prevent retries
       }
 
       if (order.paymentStatus !== 'paid') {
