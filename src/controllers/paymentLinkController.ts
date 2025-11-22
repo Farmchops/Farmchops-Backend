@@ -152,6 +152,10 @@ export const payPaymentLink = async (req: Request, res: Response): Promise<Respo
     const { code } = req.params;
     const { payerName, payerEmail, payerPhone } = req.body;
 
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Payment link code is required' });
+    }
+
     if (!payerName || !payerEmail) {
       return res.status(400).json({
         success: false,
@@ -199,7 +203,7 @@ export const payPaymentLink = async (req: Request, res: Response): Promise<Respo
       reference,
       {
         type: 'payment_link',
-        paymentLinkId: paymentLink._id.toString(),
+        paymentLinkId: (paymentLink._id as mongoose.Types.ObjectId).toString(),
         paymentLinkCode: paymentLink.code,
         payerName,
         payerPhone
@@ -238,6 +242,10 @@ export const verifyPaymentLinkPayment = async (req: Request, res: Response): Pro
     const { code } = req.params;
     const { reference } = req.query;
 
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Payment link code is required' });
+    }
+
     if (!reference) {
       return res.status(400).json({ success: false, message: 'Payment reference is required' });
     }
@@ -273,7 +281,7 @@ export const verifyPaymentLinkPayment = async (req: Request, res: Response): Pro
       const creator = await User.findById(paymentLink.createdBy);
       if (creator) {
         await walletService.creditWallet(
-          creator._id,
+          creator._id as mongoose.Types.ObjectId,
           paymentLink.amount,
           `Payment received via Pay-for-Me link: ${paymentLink.code}`,
           paymentLink.paymentReference
@@ -403,6 +411,10 @@ export const cancelPaymentLink = async (req: AuthRequest, res: Response): Promis
     }
 
     const { code } = req.params;
+
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Payment link code is required' });
+    }
 
     const paymentLink = await PaymentLink.findOne({
       code: code.toUpperCase(),
