@@ -1,4 +1,5 @@
 import { Router } from 'express';
+
 import {
 	getOrders,
 	getOrderById,
@@ -12,6 +13,12 @@ import {
 	closeOrder,
 	getOrderAvailableActions,
 	getOrderWorkflowConfiguration,
+    getDashboardSummary, 
+    getOrderTrend, 
+    getUsersTrend, 
+    getRecentOrders,
+    getConversionRate,
+    getTotalOrders,
 	listRiders
 } from '../controllers/adminOrderController';
 import { authenticateToken, requireAdmin, requirePermission } from '../middleware/auth';
@@ -19,7 +26,7 @@ import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
 
-// Apply authentication and admin authorization to all routes
+
 router.use(authenticateToken);
 router.use(requireAdmin);
 
@@ -37,5 +44,13 @@ router.patch('/orders/:id/actions/fail-delivery', requirePermission(PERMISSIONS.
 router.patch('/orders/:id/actions/return-to-dispatch', requirePermission(PERMISSIONS.ORDERS_DISPATCH_RETURN), returnOrderToDispatch);
 router.patch('/orders/:id/actions/cancel', requirePermission(PERMISSIONS.ORDERS_OVERRIDE_CANCEL), cancelOrder);
 router.patch('/orders/:id/actions/close', requirePermission(PERMISSIONS.ORDERS_DELIVERY_CLOSE), closeOrder);
+
+//dashboard routes
+router.get('/dashboard/summary', getDashboardSummary);
+router.get('/dashboard/order-trend', getOrderTrend);
+router.get('/dashboard/users-trend', getUsersTrend);
+router.get('/dashboard/recent-orders', getRecentOrders);
+router.get('/dashboard/conversion-rate', getConversionRate);
+router.get('/dashboard/total-orders', getTotalOrders);
 
 export default router;
