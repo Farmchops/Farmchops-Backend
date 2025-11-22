@@ -32,6 +32,7 @@ const decorateDeal = async (deal: any) => {
   
   return {
     deal: {
+      _id: String(deal._id), // For frontend compatibility
       dealId: String(deal._id), // Ensure this is always a string
       title: deal.title,
       description: deal.description,
