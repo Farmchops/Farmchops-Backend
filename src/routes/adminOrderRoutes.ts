@@ -13,13 +13,17 @@ import {
 	closeOrder,
 	getOrderAvailableActions,
 	getOrderWorkflowConfiguration,
-    getDashboardSummary, 
-    getOrderTrend, 
-    getUsersTrend, 
+    getDashboardSummary,
+    getOrderTrend,
+    getUsersTrend,
     getRecentOrders,
     getConversionRate,
     getTotalOrders,
-	listRiders
+	listRiders,
+	getRevenueTrend,
+	getPaymentMethodsBreakdown,
+	getAverageOrderValue,
+	getTopProducts
 } from '../controllers/adminOrderController';
 import { authenticateToken, requireAdmin, requirePermission } from '../middleware/auth';
 import { PERMISSIONS } from '../utils/permissions';
@@ -52,5 +56,11 @@ router.get('/dashboard/users-trend', getUsersTrend);
 router.get('/dashboard/recent-orders', getRecentOrders);
 router.get('/dashboard/conversion-rate', getConversionRate);
 router.get('/dashboard/total-orders', getTotalOrders);
+
+// Sales page routes
+router.get('/dashboard/revenue-trend', getRevenueTrend);
+router.get('/dashboard/payment-methods', getPaymentMethodsBreakdown);
+router.get('/dashboard/average-order-value', getAverageOrderValue);
+router.get('/dashboard/top-products', getTopProducts);
 
 export default router;

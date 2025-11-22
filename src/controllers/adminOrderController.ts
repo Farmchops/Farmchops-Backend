@@ -699,3 +699,304 @@ export const getTotalOrders = async (req: Request, res: Response): Promise<Respo
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
   }
 };
+
+// GET /api/admin/dashboard/revenue-trend - Returns monthly revenue data for chart
+export const getRevenueTrend = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { startDate, endDate } = req.query as any;
+
+    const now = new Date();
+
+    let start: Date;
+    let end: Date;
+
+    if (startDate) {
+      start = new Date(startDate);
+    } else {
+      start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    }
+
+    if (endDate) {
+      end = new Date(endDate);
+    } else {
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid startDate or endDate' });
+    }
+
+    const match: any = {
+      createdAt: { $gte: start, $lte: end },
+      paymentStatus: 'paid'
+    };
+
+    const agg = await Order.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+          revenue: { $sum: '$totalAmount' },
+          orderCount: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    const revenueMap: Record<string, { revenue: number; orderCount: number }> = {};
+    agg.forEach((row: any) => {
+      const y = row._id.year;
+      const m = String(row._id.month).padStart(2, '0');
+      revenueMap[`${y}-${m}`] = { revenue: row.revenue, orderCount: row.orderCount };
+    });
+
+    const results: Array<{ month: string; revenue: number; orderCount: number }> = [];
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cursor <= end) {
+      const y = cursor.getFullYear();
+      const m = String(cursor.getMonth() + 1).padStart(2, '0');
+      const key = `${y}-${m}`;
+      results.push({
+        month: key,
+        revenue: revenueMap[key]?.revenue || 0,
+        orderCount: revenueMap[key]?.orderCount || 0
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    return res.json({ success: true, data: results });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
+
+// GET /api/admin/dashboard/payment-methods - Returns payment method breakdown
+export const getPaymentMethodsBreakdown = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { startDate, endDate } = req.query as any;
+
+    const match: any = { paymentStatus: 'paid' };
+    if (startDate || endDate) {
+      match.createdAt = {};
+      if (startDate) match.createdAt.$gte = new Date(startDate);
+      if (endDate) match.createdAt.$lte = new Date(endDate);
+    }
+
+    const agg = await Order.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: '$paymentMethod',
+          count: { $sum: 1 },
+          revenue: { $sum: '$totalAmount' }
+        }
+      }
+    ]);
+
+    const totalOrders = agg.reduce((sum, item) => sum + item.count, 0);
+    const totalRevenue = agg.reduce((sum, item) => sum + item.revenue, 0);
+
+    // Map payment methods to display names
+    const methodNames: Record<string, string> = {
+      'paystack': 'Online Payment',
+      'wallet': 'Digital Wallet',
+      'pay_later': 'Paylater'
+    };
+
+    const breakdown = agg.map((item: any) => ({
+      method: item._id,
+      displayName: methodNames[item._id] || item._id,
+      count: item.count,
+      revenue: item.revenue,
+      percentage: totalOrders > 0 ? Number(((item.count / totalOrders) * 100).toFixed(1)) : 0,
+      revenuePercentage: totalRevenue > 0 ? Number(((item.revenue / totalRevenue) * 100).toFixed(1)) : 0
+    }));
+
+    // Ensure all payment methods are represented
+    const allMethods = ['paystack', 'wallet', 'pay_later'];
+    allMethods.forEach(method => {
+      if (!breakdown.find((b: any) => b.method === method)) {
+        breakdown.push({
+          method,
+          displayName: methodNames[method],
+          count: 0,
+          revenue: 0,
+          percentage: 0,
+          revenuePercentage: 0
+        });
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        totalOrders,
+        totalRevenue,
+        breakdown
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
+
+// GET /api/admin/dashboard/average-order-value - Returns AOV trend over time
+export const getAverageOrderValue = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { startDate, endDate } = req.query as any;
+
+    const now = new Date();
+
+    let start: Date;
+    let end: Date;
+
+    if (startDate) {
+      start = new Date(startDate);
+    } else {
+      start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    }
+
+    if (endDate) {
+      end = new Date(endDate);
+    } else {
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid startDate or endDate' });
+    }
+
+    const match: any = {
+      createdAt: { $gte: start, $lte: end },
+      paymentStatus: 'paid'
+    };
+
+    const agg = await Order.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+          totalRevenue: { $sum: '$totalAmount' },
+          orderCount: { $sum: 1 },
+          avgOrderValue: { $avg: '$totalAmount' }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    const aovMap: Record<string, { aov: number; orderCount: number; totalRevenue: number }> = {};
+    agg.forEach((row: any) => {
+      const y = row._id.year;
+      const m = String(row._id.month).padStart(2, '0');
+      aovMap[`${y}-${m}`] = {
+        aov: Number(row.avgOrderValue.toFixed(2)),
+        orderCount: row.orderCount,
+        totalRevenue: row.totalRevenue
+      };
+    });
+
+    const results: Array<{ month: string; averageOrderValue: number; orderCount: number; totalRevenue: number }> = [];
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cursor <= end) {
+      const y = cursor.getFullYear();
+      const m = String(cursor.getMonth() + 1).padStart(2, '0');
+      const key = `${y}-${m}`;
+      results.push({
+        month: key,
+        averageOrderValue: aovMap[key]?.aov || 0,
+        orderCount: aovMap[key]?.orderCount || 0,
+        totalRevenue: aovMap[key]?.totalRevenue || 0
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    // Calculate overall AOV
+    const overallMatch: any = { paymentStatus: 'paid' };
+    if (startDate || endDate) {
+      overallMatch.createdAt = { $gte: start, $lte: end };
+    }
+    const overallAgg = await Order.aggregate([
+      { $match: overallMatch },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$totalAmount' },
+          orderCount: { $sum: 1 },
+          avgOrderValue: { $avg: '$totalAmount' }
+        }
+      }
+    ]);
+
+    const overall = overallAgg[0] || { totalRevenue: 0, orderCount: 0, avgOrderValue: 0 };
+
+    return res.json({
+      success: true,
+      data: {
+        overall: {
+          averageOrderValue: Number((overall.avgOrderValue || 0).toFixed(2)),
+          totalRevenue: overall.totalRevenue || 0,
+          orderCount: overall.orderCount || 0
+        },
+        trend: results
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
+
+// GET /api/admin/dashboard/top-products - Returns top products by revenue/orders
+export const getTopProducts = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { startDate, endDate, limit = 10, sortBy = 'revenue' } = req.query as any;
+
+    const match: any = { paymentStatus: 'paid' };
+    if (startDate || endDate) {
+      match.createdAt = {};
+      if (startDate) match.createdAt.$gte = new Date(startDate);
+      if (endDate) match.createdAt.$lte = new Date(endDate);
+    }
+
+    const agg = await Order.aggregate([
+      { $match: match },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.product',
+          productName: { $first: '$items.productName' },
+          totalQuantity: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: '$items.totalPrice' },
+          orderCount: { $sum: 1 }
+        }
+      },
+      { $sort: sortBy === 'orders' ? { orderCount: -1 } : { totalRevenue: -1 } },
+      { $limit: Number(limit) }
+    ]);
+
+    // Populate product details
+    const productIds = agg.map((item: any) => item._id);
+    const products = await mongoose.model('Product').find(
+      { _id: { $in: productIds } },
+      'name images'
+    );
+
+    const productMap = new Map(products.map((p: any) => [p._id.toString(), p]));
+
+    const results = agg.map((item: any, index: number) => {
+      const product = productMap.get(item._id?.toString());
+      return {
+        rank: index + 1,
+        productId: item._id?.toString(),
+        productName: product?.name || item.productName || 'Unknown Product',
+        productImage: product?.images?.[0] || null,
+        totalQuantity: item.totalQuantity,
+        totalRevenue: item.totalRevenue,
+        orderCount: item.orderCount
+      };
+    });
+
+    return res.json({ success: true, data: results });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
