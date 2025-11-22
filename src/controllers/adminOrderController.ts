@@ -459,7 +459,7 @@ export const getOrderTrend = async (req: Request, res: Response): Promise<Respon
   }
 };
 
-// GET /api/admin/dashboard/recent-orders - Returns array of { orderId, amount, date, userId }
+// GET /api/admin/dashboard/recent-orders - Returns array of recent orders with customer details
 export const getRecentOrders = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { limit = 10, startDate, endDate } = req.query as any;
@@ -474,13 +474,18 @@ export const getRecentOrders = async (req: Request, res: Response): Promise<Resp
     const orders = await Order.find(match)
       .sort({ createdAt: -1 })
       .limit(Number(limit))
-      .select('_id totalAmount createdAt user')
-      .populate('user', '_id');
+      .select('_id orderNumber totalAmount createdAt user orderStatus paymentStatus')
+      .populate('user', '_id firstName lastName email');
 
     const results = orders.map((o: any) => ({
       orderId: o._id?.toString?.() || String(o._id),
+      orderNumber: o.orderNumber,
+      customerName: o.user ? `${o.user.firstName || ''} ${o.user.lastName || ''}`.trim() : 'Guest',
+      customerEmail: o.user?.email || null,
       amount: o.totalAmount,
       date: o.createdAt,
+      orderStatus: o.orderStatus,
+      paymentStatus: o.paymentStatus,
       userId: o.user && (o.user._id ? o.user._id.toString() : o.user.toString())
     }));
 
@@ -633,10 +638,34 @@ export const getTotalOrders = async (req: Request, res: Response): Promise<Respo
     const pendingOrders = await Order.countDocuments({ ...match, paymentStatus: 'pending' });
     const failedOrders = await Order.countDocuments({ ...match, paymentStatus: 'failed' });
 
-    // Breakdown by order status
-    const completedOrders = await Order.countDocuments({ ...match, orderStatus: 'completed' });
+    // Breakdown by order status (matching dashboard labels)
+    // Delivered = 'delivered' or 'completed' status
+    const deliveredOrders = await Order.countDocuments({
+      ...match,
+      orderStatus: { $in: ['delivered', 'completed'] }
+    });
     const cancelledOrders = await Order.countDocuments({ ...match, orderStatus: 'cancelled' });
-    const activeOrders = totalOrders - completedOrders - cancelledOrders;
+    // Pending = all orders that are not delivered/completed and not cancelled
+    const pendingOrders_status = totalOrders - deliveredOrders - cancelledOrders;
+
+    // Calculate percentages for pie chart
+    const deliveredPercentage = totalOrders > 0 ? Number(((deliveredOrders / totalOrders) * 100).toFixed(1)) : 0;
+    const pendingPercentage = totalOrders > 0 ? Number(((pendingOrders_status / totalOrders) * 100).toFixed(1)) : 0;
+    const cancelledPercentage = totalOrders > 0 ? Number(((cancelledOrders / totalOrders) * 100).toFixed(1)) : 0;
+
+    // Calculate revenue for each status
+    const deliveredRevenue = await Order.aggregate([
+      { $match: { ...match, orderStatus: { $in: ['delivered', 'completed'] } } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const pendingRevenue = await Order.aggregate([
+      { $match: { ...match, orderStatus: { $nin: ['delivered', 'completed', 'cancelled'] } } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const cancelledRevenue = await Order.aggregate([
+      { $match: { ...match, orderStatus: 'cancelled' } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
 
     return res.json({
       success: true,
@@ -648,9 +677,21 @@ export const getTotalOrders = async (req: Request, res: Response): Promise<Respo
           failed: failedOrders
         },
         byOrderStatus: {
-          active: activeOrders,
-          completed: completedOrders,
-          cancelled: cancelledOrders
+          delivered: {
+            count: deliveredOrders,
+            percentage: deliveredPercentage,
+            revenue: deliveredRevenue[0]?.total || 0
+          },
+          pending: {
+            count: pendingOrders_status,
+            percentage: pendingPercentage,
+            revenue: pendingRevenue[0]?.total || 0
+          },
+          cancelled: {
+            count: cancelledOrders,
+            percentage: cancelledPercentage,
+            revenue: cancelledRevenue[0]?.total || 0
+          }
         }
       }
     });
