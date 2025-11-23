@@ -147,6 +147,7 @@ export const getPaymentLinkByCode = async (req: Request, res: Response): Promise
 };
 
 // POST /api/payment-links/:code/pay - Initialize payment for a payment link
+// payerName, payerEmail, payerPhone are all optional - Paystack will collect from user
 export const payPaymentLink = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { code } = req.params;
@@ -156,14 +157,8 @@ export const payPaymentLink = async (req: Request, res: Response): Promise<Respo
       return res.status(400).json({ success: false, message: 'Payment link code is required' });
     }
 
-    if (!payerName || !payerEmail) {
-      return res.status(400).json({
-        success: false,
-        message: 'Payer name and email are required'
-      });
-    }
-
-    const paymentLink = await PaymentLink.findOne({ code: code.toUpperCase() });
+    const paymentLink = await PaymentLink.findOne({ code: code.toUpperCase() })
+      .populate('createdBy', 'email firstName lastName');
 
     if (!paymentLink) {
       return res.status(404).json({ success: false, message: 'Payment link not found' });
@@ -196,27 +191,33 @@ export const payPaymentLink = async (req: Request, res: Response): Promise<Respo
     // Generate unique reference for this payment
     const reference = `PL-${paymentLink.code}-${Date.now()}`.toUpperCase();
 
+    // Use provided email or fall back to creator's email for Paystack initialization
+    const creator = paymentLink.createdBy as any;
+    const emailForPaystack = payerEmail || creator?.email || 'customer@farmchops.com';
+
     // Initialize Paystack transaction
     const paystackResponse = await paystackService.initializeTransaction(
-      payerEmail,
+      emailForPaystack,
       paymentLink.amount,
       reference,
       {
         type: 'payment_link',
         paymentLinkId: (paymentLink._id as mongoose.Types.ObjectId).toString(),
         paymentLinkCode: paymentLink.code,
-        payerName,
+        payerName: payerName || 'Anonymous',
         payerPhone
       }
     );
 
-    // Store pending payment info
+    // Store pending payment info (only if provided)
     paymentLink.paymentReference = reference;
-    paymentLink.paidBy = {
-      name: payerName,
-      email: payerEmail,
-      phone: payerPhone
-    };
+    if (payerName || payerEmail || payerPhone) {
+      paymentLink.paidBy = {
+        name: payerName || 'Anonymous',
+        email: payerEmail || emailForPaystack,
+        phone: payerPhone
+      };
+    }
     await paymentLink.save();
 
     return res.json({

@@ -389,7 +389,7 @@ Get payment link details. This endpoint is public (no authentication required).
 
 ### 3. Pay via Payment Link
 
-Initialize payment for a payment link. This endpoint is public.
+Initialize payment for a payment link. This endpoint is public. All body fields are optional - Paystack will collect payer details directly.
 
 **Endpoint:** `POST /api/payment-links/:code/pay`
 
@@ -403,7 +403,7 @@ Content-Type: application/json
 |-----------|------|----------|-------------|
 | code | string | Yes | Payment link code |
 
-**Request Body:**
+**Request Body:** (All fields optional)
 ```json
 {
   "payerName": "Jane Smith",
@@ -414,9 +414,11 @@ Content-Type: application/json
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| payerName | string | Yes | Name of the person paying |
-| payerEmail | string | Yes | Email of the person paying |
-| payerPhone | string | No | Phone of the person paying |
+| payerName | string | No | Name of the person paying (optional) |
+| payerEmail | string | No | Email of the person paying (optional - Paystack collects) |
+| payerPhone | string | No | Phone of the person paying (optional) |
+
+**Note:** If no email is provided, the system will use the payment link creator's email for Paystack initialization. Paystack will then allow the payer to enter their own details on the checkout page.
 
 **Response:**
 ```json
