@@ -96,7 +96,7 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     requiredPermission: PERMISSIONS.ORDERS_PROCESSING_COMPLETE,
     nextOwner: NEXT_STAGE_OWNER.ready_for_dispatch,
     ownerRoles: ['operations_officer','logistics'],
-    requires: { note: true },
+    requires: { note: false },
     guard: (order) => order.paymentStatus === 'paid'
   },
   'assign-rider': {
@@ -139,7 +139,7 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     requiredPermission: PERMISSIONS.ORDERS_DISPATCH_FAIL,
     nextOwner: NEXT_STAGE_OWNER.failed_delivery,
     ownerRoles: ['logistics','customer_support','operations_officer'],
-    requires: { reason: true, note: false },
+    requires: { reason: false, note: false },
     guard: (order) => Boolean(order.assignedRider?.rider)
   },
   'return-to-dispatch': {
@@ -155,7 +155,7 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     requiredPermission: PERMISSIONS.ORDERS_OVERRIDE_CANCEL,
     nextOwner: NEXT_STAGE_OWNER.cancelled,
     ownerRoles: ['customer_support','operations_officer'],
-    requires: { reason: true }
+    requires: { reason: false }
   }
 };
 
