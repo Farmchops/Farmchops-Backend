@@ -673,32 +673,42 @@ export const verifyGroupOrderPayment = async (req: AuthRequest, res: Response): 
           });
         }
 
-        const participant = group.participants.find(p =>
+        const participantIndex = group.participants.findIndex(p =>
           p.userId.equals(req.user!._id as mongoose.Types.ObjectId)
         );
 
-        if (participant && participant.status === 'paid') {
-          return res.json({
-            success: true,
-            message: 'Payment verified and checkout completed',
-            data: {
-              groupId: group.groupId,
-              phase: group.phase,
-              participant: {
-                amount: participant.amount,
-                quantity: participant.quantity,
-                status: participant.status,
-                orderId: participant.orderId,
-                paidAt: participant.paidAt
-              }
-            }
-          });
-        } else {
-          return res.status(400).json({
+        if (participantIndex === -1) {
+          return res.status(404).json({
             success: false,
-            message: 'Payment verified but checkout not completed yet. Please try again.'
+            message: 'You are not a participant in this group'
           });
         }
+
+        const participant = group.participants[participantIndex];
+
+        // Update participant status to 'paid' if payment was successful
+        if (participant.status !== 'paid') {
+          participant.status = 'paid';
+          participant.paidAt = new Date();
+          participant.paymentReference = reference;
+          await group.save();
+        }
+
+        return res.json({
+          success: true,
+          message: 'Payment verified and checkout completed',
+          data: {
+            groupId: group.groupId,
+            phase: group.phase,
+            participant: {
+              amount: participant.amount,
+              quantity: participant.quantity,
+              status: participant.status,
+              orderId: participant.orderId,
+              paidAt: participant.paidAt
+            }
+          }
+        });
       }
     }
 
