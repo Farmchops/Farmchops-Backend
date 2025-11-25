@@ -684,9 +684,9 @@ export const verifyGroupOrderPayment = async (req: AuthRequest, res: Response): 
           });
         }
 
-        const participant = group.participants[participantIndex];
-
         // Update participant status to 'paid' if payment was successful
+        const participant = group.participants[participantIndex]!;
+
         if (participant.status !== 'paid') {
           participant.status = 'paid';
           participant.paidAt = new Date();
