@@ -26,20 +26,25 @@ class PaystackService {
    * @param amount Amount in kobo (already converted from naira in backend)
    * @param reference Unique transaction reference
    * @param metadata Additional data to attach to the transaction
+   * @param callbackUrl Custom callback URL (optional, defaults to /order/success)
    */
   async initializeTransaction(
     email: string,
     amount: number,
     reference: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
+    callbackUrl?: string
   ) {
     try {
+      const defaultCallbackUrl = process.env.PAYSTACK_CALLBACK_URL || `${process.env.FRONTEND_URL}/order/success`;
+      const finalCallbackUrl = callbackUrl || defaultCallbackUrl;
+
       const response = await this.api.post('/transaction/initialize', {
         email,
         amount: Math.round(amount), // Amount is already in kobo from backend
         reference,
         metadata,
-        callback_url: process.env.PAYSTACK_CALLBACK_URL || `${process.env.FRONTEND_URL}/order/success`,
+        callback_url: finalCallbackUrl,
       });
 
       return response.data;

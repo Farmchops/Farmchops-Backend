@@ -196,6 +196,8 @@ export const initiateCheckout = async (req: AuthRequest, res: Response): Promise
     const paymentReference = `grp-${crypto.randomBytes(8).toString('hex')}`;
 
     // Initialize Paystack payment (amount is already in kobo, Paystack expects kobo)
+    const groupCallbackUrl = `${process.env.FRONTEND_URL}/group-payment/callback`;
+
     try {
       const paystackResponse = await paystackService.initializeTransaction(
         req.user.email,
@@ -206,7 +208,8 @@ export const initiateCheckout = async (req: AuthRequest, res: Response): Promise
           userId: (req.user._id as mongoose.Types.ObjectId).toString(),
           deliveryInfo: JSON.stringify(deliveryInfo),
           deliveryFee: deliveryFee.toString()
-        }
+        },
+        groupCallbackUrl
       );
 
       return res.json({
