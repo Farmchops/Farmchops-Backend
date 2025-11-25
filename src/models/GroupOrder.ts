@@ -335,11 +335,10 @@ const GroupOrderSchema = new Schema<IGroupOrder>({
   timestamps: true
 });
 
-// Indexes
+// Indexes (shareableCode already has unique: true, no need for separate index)
 GroupOrderSchema.index({ 'product._id': 1, phase: 1 });
 GroupOrderSchema.index({ phase: 1, createdAt: -1 });
 GroupOrderSchema.index({ 'participants.userId': 1 });
-GroupOrderSchema.index({ shareableCode: 1 });
 GroupOrderSchema.index({ checkoutWindowClosesAt: 1 });
 
 // Instance methods

@@ -74,7 +74,9 @@ if (process.env.NODE_ENV !== 'production') {
   });
 } else {
   app.use(cors({
-    origin: [ 'http://localhost:5173',
+    origin: [
+      'http://localhost:5172',
+      'http://localhost:5173',
       'http://localhost:5000',
       'http://localhost:3000',
       'https://farmchops.com',
@@ -89,6 +91,10 @@ if (process.env.NODE_ENV !== 'production') {
     preflightContinue: false,
     optionsSuccessStatus: 204
   }));
+  app.use((req, res, next) => {
+    console.log('[CORS] Request from origin:', req.headers.origin);
+    next();
+  });
 }
 
 app.use(helmet({

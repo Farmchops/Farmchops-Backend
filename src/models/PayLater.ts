@@ -159,7 +159,7 @@ const PayLaterAccountSchema = new Schema<IPayLaterAccount>({
   timestamps: true
 });
 
-PayLaterAccountSchema.index({ userId: 1 }, { unique: true });
+// userId already has unique: true in schema, no need for duplicate index
 PayLaterAccountSchema.index({ status: 1 });
 PayLaterAccountSchema.index({ hasActiveLoan: 1 });
 
@@ -283,7 +283,7 @@ const PayLaterOrderSchema = new Schema<IPayLaterOrder>({
 
 PayLaterOrderSchema.index({ userId: 1, createdAt: -1 });
 PayLaterOrderSchema.index({ accountId: 1 });
-PayLaterOrderSchema.index({ orderNumber: 1 }, { unique: true });
+// orderNumber already has unique: true in schema, no need for duplicate index
 PayLaterOrderSchema.index({ repaymentStatus: 1 });
 PayLaterOrderSchema.index({ dueDate: 1 });
 
@@ -333,7 +333,7 @@ const PayLaterCartSchema = new Schema<IPayLaterCart>({
   timestamps: true
 });
 
-PayLaterCartSchema.index({ userId: 1 }, { unique: true });
+// userId already has unique: true in schema, no need for duplicate index
 
 export const PayLaterCart = mongoose.model<IPayLaterCart>(
   'PayLaterCart',

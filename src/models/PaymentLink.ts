@@ -107,8 +107,7 @@ const PaymentLinkSchema = new Schema({
   timestamps: true
 });
 
-// Indexes
-PaymentLinkSchema.index({ code: 1 }, { unique: true });
+// Indexes (code already has unique: true in schema, no need for duplicate unique index)
 PaymentLinkSchema.index({ createdBy: 1, createdAt: -1 });
 PaymentLinkSchema.index({ orderId: 1 });
 PaymentLinkSchema.index({ status: 1, expiresAt: 1 });
