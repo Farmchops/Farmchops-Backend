@@ -189,12 +189,13 @@ export const initiateCheckout = async (req: AuthRequest, res: Response): Promise
       });
     }
 
+    // Total amount in kobo (participant.amount is already in kobo)
     const totalAmount = participant.amount + deliveryFee;
 
     // Generate payment reference
     const paymentReference = `grp-${crypto.randomBytes(8).toString('hex')}`;
 
-    // Initialize Paystack payment
+    // Initialize Paystack payment (amount is already in kobo, Paystack expects kobo)
     try {
       const paystackResponse = await paystackService.initializeTransaction(
         req.user.email,

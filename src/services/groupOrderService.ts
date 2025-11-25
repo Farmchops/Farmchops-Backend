@@ -161,7 +161,7 @@ export class GroupOrderService {
         );
       }
 
-      // Calculate amount
+      // Calculate amount (in kobo) - stored in database as kobo
       const amount = quantity * group.bulkPricePerUnit;
 
       // Create participant

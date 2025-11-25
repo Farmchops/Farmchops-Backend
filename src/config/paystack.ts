@@ -23,7 +23,7 @@ class PaystackService {
   /**
    * Initialize a payment transaction
    * @param email Customer's email address
-   * @param amount Amount in kobo (smallest currency unit)
+   * @param amount Amount in kobo (already converted from naira in backend)
    * @param reference Unique transaction reference
    * @param metadata Additional data to attach to the transaction
    */
@@ -36,7 +36,7 @@ class PaystackService {
     try {
       const response = await this.api.post('/transaction/initialize', {
         email,
-        amount: Math.round(amount * 100), // Paystack expects amount in kobo
+        amount: Math.round(amount), // Amount is already in kobo from backend
         reference,
         metadata,
         callback_url: process.env.PAYSTACK_CALLBACK_URL || `${process.env.FRONTEND_URL}/order/success`,
