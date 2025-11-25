@@ -14,21 +14,6 @@ dotenv.config();
 import DatabaseConnection from './config/database';
 //import RedisConnection from './config/redis';
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || '1233edhkndlfjkneinr93u943',
-  resave: false,
-  saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI,
-    ttl: 7 * 24 * 60 * 60 // 7 days
-  }),
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-  }
-}));
-
 import category from './routes/categoryRoutes'
 import auth from './routes/authRoutes'
 import product from './routes/productsRoutes'
@@ -55,7 +40,7 @@ import adminPaylaterRoutes from './routes/adminPaylaterRoutes';
 const PORT = Number(process.env.PORT) || 5000;
 
 
-// CORS configuration
+// CORS configuration - MUST be FIRST middleware before session, helmet, etc.
 // In development allow the frontend origin(s) flexibly to avoid preflight issues (helps local dev).
 if (process.env.NODE_ENV !== 'production') {
   app.use(cors({
@@ -98,13 +83,28 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }  // Add this!
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-
 
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Session middleware - AFTER CORS
+app.use(session({
+  secret: process.env.SESSION_SECRET || '1233edhkndlfjkneinr93u943',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    ttl: 7 * 24 * 60 * 60 // 7 days
+  }),
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  }
+}));
 
 
 app.use('/api/categories', category)
