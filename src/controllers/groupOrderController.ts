@@ -535,7 +535,8 @@ export const getGroupDetails = async (req: AuthRequest, res: Response): Promise<
         quantity: p.quantity,
         status: p.status,
         reservedAt: p.reservedAt,
-        paidAt: p.paidAt
+        paidAt: p.paidAt,
+        deliveryInfo: p.deliveryInfo // Include delivery info (only populated for paid participants)
       }));
 
     return res.json({
@@ -691,6 +692,23 @@ export const verifyGroupOrderPayment = async (req: AuthRequest, res: Response): 
           participant.status = 'paid';
           participant.paidAt = new Date();
           participant.paymentReference = reference;
+
+          // Extract and save delivery info from metadata
+          if (metadata.deliveryInfo) {
+            const parsedDeliveryInfo = typeof metadata.deliveryInfo === 'string'
+              ? JSON.parse(metadata.deliveryInfo)
+              : metadata.deliveryInfo;
+            participant.deliveryInfo = parsedDeliveryInfo;
+          }
+
+          // Extract and save delivery fee from metadata
+          if (metadata.deliveryFee) {
+            const parsedDeliveryFee = typeof metadata.deliveryFee === 'string'
+              ? parseFloat(metadata.deliveryFee)
+              : metadata.deliveryFee;
+            participant.deliveryFee = parsedDeliveryFee;
+          }
+
           await group.save();
         }
 

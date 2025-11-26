@@ -2,10 +2,10 @@ import nodemailer from "nodemailer";
 
 // Email transporter configuration
 const createTransporter = () => {
-  const port = parseInt(process.env.EMAIL_PORT || "587");
-  
+  const port = parseInt(process.env.EMAIL_PORT || "465");
+
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || "mail.privateemail.com",
+    host: process.env.EMAIL_HOST || "smtp.hostinger.com",
     port: port,
     secure: port === 465, // true for 465 (SSL), false for 587 (TLS)
     auth: {
@@ -15,14 +15,11 @@ const createTransporter = () => {
     tls: {
       // Don't fail on invalid certs (helpful for testing)
       rejectUnauthorized: false,
-      minVersion: 'TLSv1', // Try older version
-      maxVersion: 'TLSv1.2',
-      ciphers: 'DEFAULT:!DH' // Try different cipher suite
     },
     // Add connection timeout
-    connectionTimeout: 60000, 
-    greetingTimeout: 30000,  
-    socketTimeout: 60000,   
+    connectionTimeout: 60000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
   });
 };
 
