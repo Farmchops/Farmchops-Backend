@@ -159,6 +159,10 @@ export const initializeWalletFunding = async (req: AuthRequest, res: Response): 
 
     // Initialize Paystack transaction (convert amount to kobo: 1 naira = 100 kobo)
     const amountInKobo = amount * 100;
+
+    // Custom callback URL for wallet funding
+    const walletCallbackUrl = `${process.env.FRONTEND_URL}/profile/wallet/fund`;
+
     const paystackResponse = await paystackService.initializeTransaction(
       user.email,
       amountInKobo,
@@ -167,7 +171,8 @@ export const initializeWalletFunding = async (req: AuthRequest, res: Response): 
         type: 'wallet_funding',
         userId: (user._id as mongoose.Types.ObjectId).toString(),
         transactionId: (pendingTransaction._id as mongoose.Types.ObjectId).toString()
-      }
+      },
+      walletCallbackUrl
     );
 
     return res.json({
