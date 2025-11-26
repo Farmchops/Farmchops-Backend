@@ -157,10 +157,11 @@ export const initializeWalletFunding = async (req: AuthRequest, res: Response): 
       status: 'pending'
     });
 
-    // Initialize Paystack transaction
+    // Initialize Paystack transaction (convert amount to kobo: 1 naira = 100 kobo)
+    const amountInKobo = amount * 100;
     const paystackResponse = await paystackService.initializeTransaction(
       user.email,
-      amount,
+      amountInKobo,
       reference,
       {
         type: 'wallet_funding',
