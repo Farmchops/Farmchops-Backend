@@ -16,6 +16,7 @@ const createTransporter = () => {
       user: process.env.EMAIL_USER || "",
       pass: process.env.EMAIL_PASS || "",
     },
+    authMethod: 'LOGIN', // Try LOGIN instead of PLAIN
     tls: {
       rejectUnauthorized: false,
     },
