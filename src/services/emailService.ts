@@ -7,16 +7,18 @@ const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || "smtp.hostinger.com",
     port: port,
-    secure: port === 465, // true for 465 (SSL), false for 587 (TLS)
+    secure: port === 465, // true for 465 (SSL), false for 587 (STARTTLS)
     auth: {
+      type: 'login',
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
     tls: {
-      // Don't fail on invalid certs (helpful for testing)
       rejectUnauthorized: false,
+      ciphers: 'SSLv3'
     },
-    // Add connection timeout
+    debug: true, // Enable debug output
+    logger: true, // Log to console
     connectionTimeout: 60000,
     greetingTimeout: 30000,
     socketTimeout: 60000,
