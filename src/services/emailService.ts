@@ -261,13 +261,31 @@ class EmailService {
   // Test email connection with better error handling
   async testConnection(): Promise<boolean> {
     try {
-      await this.getTransporter().verify();
-      console.log("Email service connected successfully");
+      console.log("=== TESTING EMAIL CONNECTION ===");
+      console.log("Config:", {
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        secure: process.env.EMAIL_PORT === "465",
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS ? `${process.env.EMAIL_PASS.substring(0, 3)}***` : "NOT SET",
+      });
+
+      const transporter = this.getTransporter();
+
+      // This will attempt to authenticate
+      await transporter.verify();
+
+      console.log("✓ Email service connected successfully");
       return true;
     } catch (error: any) {
-      console.error("Email service connection failed:", error.message);
+      console.error("=== CONNECTION TEST FAILED ===");
       console.error("Error code:", error.code);
-      console.error("Error details:", error);
+      console.error("Error message:", error.message);
+      console.error("Response code:", error.responseCode);
+      console.error("Response:", error.response);
+      console.error("Command:", error.command);
+      console.error("Full error:", JSON.stringify(error, null, 2));
+      console.error("=== END CONNECTION TEST ===");
       return false;
     }
   }
@@ -288,15 +306,23 @@ class EmailService {
       console.log("Verification email sent:", info.messageId);
       return true;
     } catch (error: any) {
-      console.error("Error sending verification email:", error);
+      console.error("=== DETAILED EMAIL ERROR ===");
       console.error("Error code:", error.code);
       console.error("Error message:", error.message);
+      console.error("Response code:", error.responseCode);
+      console.error("Response:", error.response);
+      console.error("Command:", error.command);
+      console.error("Full error object:", JSON.stringify(error, null, 2));
       console.error("Email config:", {
         host: process.env.EMAIL_HOST,
         port: process.env.EMAIL_PORT,
+        secure: process.env.EMAIL_PORT === "465",
         user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS ? `${process.env.EMAIL_PASS.substring(0, 3)}***` : "NOT SET",
         from: process.env.EMAIL_FROM
       });
+      console.error("Stack trace:", error.stack);
+      console.error("=== END ERROR ===");
       return false;
     }
   }
