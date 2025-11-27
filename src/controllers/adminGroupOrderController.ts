@@ -116,7 +116,7 @@ export const configureGroupBuying = async (req: AuthRequest, res: Response): Pro
           max: quantityPerPerson.max
         },
         targetQuantity,
-        bulkPricePerUnit,
+        bulkPricePerUnit: Math.round(bulkPricePerUnit * 100), // Convert naira to kobo (backend stores in kobo)
         deadlineHours,
         maxActiveGroups,
         checkoutWindowHours
