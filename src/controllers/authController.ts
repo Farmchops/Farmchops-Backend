@@ -301,7 +301,7 @@ export const sendVerificationEmail = async (
       await tempUser.save();
     }
 
-    // TODO: Send verification email
+    // Send verification email
     const emailSent = await emailService.sendVerificationEmail(email, verificationCode);
     if (!emailSent) {
       return res.status(500).json({

@@ -11,20 +11,15 @@ const createTransporter = () => {
   const config: SMTPTransport.Options = {
     host: process.env.EMAIL_HOST || "smtp.hostinger.com",
     port: port,
-    secure: isSSL, // true for 465, false for 587
+    secure: true,
     auth: {
       user: process.env.EMAIL_USER || "",
       pass: process.env.EMAIL_PASS || "",
     },
-    authMethod: 'LOGIN', // Try LOGIN instead of PLAIN
+    authMethod: 'LOGIN',
     tls: {
       rejectUnauthorized: false,
     },
-    debug: true, // Enable debug output
-    logger: true, // Log to console
-    connectionTimeout: 60000,
-    greetingTimeout: 30000,
-    socketTimeout: 60000,
   };
 
   // Only add requireTLS for port 587 (STARTTLS)
@@ -259,34 +254,14 @@ class EmailService {
     return this.transporter;
   }
 
-  // Test email connection with better error handling
+  // Test email connection
   async testConnection(): Promise<boolean> {
     try {
-      console.log("=== TESTING EMAIL CONNECTION ===");
-      console.log("Config:", {
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT,
-        secure: process.env.EMAIL_PORT === "465",
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS ? `${process.env.EMAIL_PASS.substring(0, 3)}***` : "NOT SET",
-      });
-
-      const transporter = this.getTransporter();
-
-      // This will attempt to authenticate
-      await transporter.verify();
-
-      console.log("✓ Email service connected successfully");
+      await this.getTransporter().verify();
+      console.log("Email service connected successfully");
       return true;
     } catch (error: any) {
-      console.error("=== CONNECTION TEST FAILED ===");
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
-      console.error("Response code:", error.responseCode);
-      console.error("Response:", error.response);
-      console.error("Command:", error.command);
-      console.error("Full error:", JSON.stringify(error, null, 2));
-      console.error("=== END CONNECTION TEST ===");
+      console.error("Email service connection failed:", error.message);
       return false;
     }
   }
@@ -307,23 +282,7 @@ class EmailService {
       console.log("Verification email sent:", info.messageId);
       return true;
     } catch (error: any) {
-      console.error("=== DETAILED EMAIL ERROR ===");
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
-      console.error("Response code:", error.responseCode);
-      console.error("Response:", error.response);
-      console.error("Command:", error.command);
-      console.error("Full error object:", JSON.stringify(error, null, 2));
-      console.error("Email config:", {
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT,
-        secure: process.env.EMAIL_PORT === "465",
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS ? `${process.env.EMAIL_PASS.substring(0, 3)}***` : "NOT SET",
-        from: process.env.EMAIL_FROM
-      });
-      console.error("Stack trace:", error.stack);
-      console.error("=== END ERROR ===");
+      console.error("Error sending verification email:", error.message);
       return false;
     }
   }
