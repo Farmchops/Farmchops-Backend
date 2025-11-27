@@ -3,20 +3,20 @@ import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 // Email transporter configuration
 const createTransporter = () => {
-  const port = parseInt(process.env.EMAIL_PORT || "465");
+  // Try port 587 with STARTTLS instead of 465 with SSL
+  const port = parseInt(process.env.EMAIL_PORT || "587");
 
   const config: SMTPTransport.Options = {
     host: process.env.EMAIL_HOST || "smtp.hostinger.com",
     port: port,
-    secure: port === 465, // true for 465 (SSL), false for 587 (STARTTLS)
+    secure: false, // Use STARTTLS instead of direct SSL
+    requireTLS: true, // Force TLS upgrade
     auth: {
-      type: 'LOGIN',
       user: process.env.EMAIL_USER || "",
       pass: process.env.EMAIL_PASS || "",
     },
     tls: {
       rejectUnauthorized: false,
-      ciphers: 'SSLv3'
     },
     debug: true, // Enable debug output
     logger: true, // Log to console
