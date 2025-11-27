@@ -3,14 +3,15 @@ import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 // Email transporter configuration
 const createTransporter = () => {
-  // Try port 587 with STARTTLS instead of 465 with SSL
-  const port = parseInt(process.env.EMAIL_PORT || "587");
+  const port = parseInt(process.env.EMAIL_PORT || "465");
+
+  // Port 465 uses SSL (secure: true), port 587 uses STARTTLS (secure: false)
+  const isSSL = port === 465;
 
   const config: SMTPTransport.Options = {
     host: process.env.EMAIL_HOST || "smtp.hostinger.com",
     port: port,
-    secure: false, // Use STARTTLS instead of direct SSL
-    requireTLS: true, // Force TLS upgrade
+    secure: isSSL, // true for 465, false for 587
     auth: {
       user: process.env.EMAIL_USER || "",
       pass: process.env.EMAIL_PASS || "",
@@ -24,6 +25,11 @@ const createTransporter = () => {
     greetingTimeout: 30000,
     socketTimeout: 60000,
   };
+
+  // Only add requireTLS for port 587 (STARTTLS)
+  if (!isSSL) {
+    config.requireTLS = true;
+  }
 
   return nodemailer.createTransport(config);
 };
