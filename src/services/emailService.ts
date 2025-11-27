@@ -1,17 +1,18 @@
 import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 // Email transporter configuration
 const createTransporter = () => {
   const port = parseInt(process.env.EMAIL_PORT || "465");
 
-  return nodemailer.createTransport({
+  const config: SMTPTransport.Options = {
     host: process.env.EMAIL_HOST || "smtp.hostinger.com",
     port: port,
     secure: port === 465, // true for 465 (SSL), false for 587 (STARTTLS)
     auth: {
-      type: 'login',
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      type: 'LOGIN',
+      user: process.env.EMAIL_USER || "",
+      pass: process.env.EMAIL_PASS || "",
     },
     tls: {
       rejectUnauthorized: false,
@@ -22,7 +23,9 @@ const createTransporter = () => {
     connectionTimeout: 60000,
     greetingTimeout: 30000,
     socketTimeout: 60000,
-  });
+  };
+
+  return nodemailer.createTransport(config);
 };
 
 // Email templates
