@@ -265,7 +265,7 @@ class EmailService {
   async sendVerificationEmail(email: string, verificationCode: string): Promise<boolean> {
     try {
       const template = createVerificationEmailTemplate(verificationCode);
-      
+
       const info = await this.getTransporter().sendMail({
         from: process.env.EMAIL_FROM || `"Farmchops" <${process.env.EMAIL_USER}>`,
         to: email,
@@ -276,8 +276,16 @@ class EmailService {
 
       console.log("Verification email sent:", info.messageId);
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending verification email:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      console.error("Email config:", {
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        user: process.env.EMAIL_USER,
+        from: process.env.EMAIL_FROM
+      });
       return false;
     }
   }
