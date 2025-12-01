@@ -357,10 +357,10 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       try {
         // Debit the wallet
         const debitResult = await walletService.debitWallet(
-          req.user._id,
+          req.user._id as mongoose.Types.ObjectId,
           order.totalAmount,
           `Payment for order ${order.orderNumber}`,
-          order._id
+          order._id as mongoose.Types.ObjectId
         );
 
         if (!debitResult.success) {
