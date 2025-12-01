@@ -51,6 +51,12 @@ export const authenticateToken = async (
     req.user = user;
     next();
   } catch (error) {
+    console.error('[AUTH] Token verification failed:', error);
+    console.error('[AUTH] Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      token: authHeader?.substring(0, 20) + '...' // Log first 20 chars only
+    });
     res.status(403).json({
       success: false,
       message: 'Invalid or expired token'

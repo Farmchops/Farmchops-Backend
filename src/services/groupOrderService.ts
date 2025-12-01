@@ -86,6 +86,9 @@ export class GroupOrderService {
     const groupId = await GroupOrder.generateGroupId();
     const shareableCode = GroupOrder.generateShareableCode();
 
+    // Calculate fill window expiry (createdAt + deadlineHours)
+    const fillWindowExpiresAt = new Date(Date.now() + product.groupConfig.deadlineHours * 60 * 60 * 1000);
+
     // Create the group
     const group = await GroupOrder.create({
       groupId,
@@ -103,6 +106,7 @@ export class GroupOrderService {
       deadlineHours: product.groupConfig.deadlineHours,
       maxActiveGroups: product.groupConfig.maxActiveGroups,
       checkoutWindowDurationHours: product.groupConfig.checkoutWindowHours,
+      fillWindowExpiresAt,
       phase: 'filling',
       participants: [],
       waitlist: [],

@@ -34,6 +34,7 @@ import walletRoutes from './routes/walletRoutes';
 import paymentLinkRoutes from './routes/paymentLinkRoutes';
 import paylaterRoutes from './routes/paylaterRoutes';
 import adminPaylaterRoutes from './routes/adminPaylaterRoutes';
+import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
 // import placesRoutes from './routes/placesRoutes';
 
 
@@ -215,11 +216,15 @@ async function startServer() {
     // Connect to database
     console.log('Starting Farmchops API...');
     await DatabaseConnection.connect();
-    
+
     await emailService.testConnection()
     // Connect to Redis (optional)
     //await RedisConnection.connect();
-    
+
+    // Start cron jobs for group orders
+    startGroupOrderExpiryJob();
+    startCheckoutWindowExpiryJob();
+
     // Start Express server
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on port ${PORT}`);

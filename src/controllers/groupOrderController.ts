@@ -37,6 +37,7 @@ export const getActiveGroups = async (req: AuthRequest, res: Response): Promise<
           reservedSlots: g.reservedSlots,
           paidSlots: g.paidSlots,
           totalQuantity: g.getTotalQuantity(),
+          fillWindowExpiresAt: g.fillWindowExpiresAt,
           checkoutWindowOpensAt: g.checkoutWindowOpensAt,
           checkoutWindowClosesAt: g.checkoutWindowClosesAt,
           createdAt: g.createdAt,
@@ -621,6 +622,7 @@ export const getGroupByShareableCode = async (req: AuthRequest, res: Response): 
         phase: group.phase,
         reservedSlots: group.reservedSlots,
         paidSlots: group.paidSlots,
+        fillWindowExpiresAt: group.fillWindowExpiresAt,
         participantsCount: group.participants.filter(p => p.status !== 'removed').length,
         canJoin: group.canAcceptMoreParticipants()
       }

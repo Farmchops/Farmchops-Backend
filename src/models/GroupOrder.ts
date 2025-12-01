@@ -91,6 +91,7 @@ export interface IGroupOrder extends Document {
   shareableCode: string;
 
   // Status tracking
+  fillWindowExpiresAt?: Date; // When the filling window expires (createdAt + deadlineHours)
   groupFilledAt?: Date; // When minimum participants was reached
   confirmedAt?: Date; // When all participants paid
   expiredAt?: Date; // When deadline passed
@@ -313,6 +314,9 @@ const GroupOrderSchema = new Schema<IGroupOrder>({
     type: String,
     required: true,
     unique: true
+  },
+  fillWindowExpiresAt: {
+    type: Date
   },
   groupFilledAt: {
     type: Date
