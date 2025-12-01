@@ -224,13 +224,16 @@ export class GroupOrderService {
     for (const participant of group.participants) {
       if (participant.status === 'reserved') {
         try {
+          // Create checkout link specific to this group
+          const checkoutLink = `${process.env.FRONTEND_URL}/group-buy/${group.shareableCode}/checkout`;
+
           await emailService.sendGroupReadyEmail(participant.user.email, {
             groupId: group.groupId,
             productName: group.product.name,
             quantity: participant.quantity,
             amount: participant.amount,
             checkoutDeadline: checkoutDeadline.toISOString(),
-            checkoutLink: group.getShareableLink()
+            checkoutLink
           });
         } catch (emailError) {
           console.error(`Failed to send email to ${participant.user.email}:`, emailError);
@@ -444,13 +447,16 @@ export class GroupOrderService {
 
         // Send notification email
         try {
+          // Create checkout link specific to this group
+          const checkoutLink = `${process.env.FRONTEND_URL}/group-buy/${group.shareableCode}/checkout`;
+
           await emailService.sendWaitlistPromotionEmail(waitlistMember.user.email, {
             groupId: group.groupId,
             productName: group.product.name,
             quantity: waitlistMember.quantity,
             amount,
             checkoutDeadline: checkoutDeadline.toISOString(),
-            checkoutLink: group.getShareableLink()
+            checkoutLink
           });
         } catch (emailError) {
           console.error(`Failed to send promotion email to ${waitlistMember.user.email}:`, emailError);

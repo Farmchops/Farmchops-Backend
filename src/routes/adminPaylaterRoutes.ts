@@ -41,8 +41,8 @@ router.get('/users/:id', getUserById);
 router.patch('/users/:id/credit-limit', updateCreditLimit);
 
 // Repayments
-// POST /api/admin/paylater/orders/:id/repaid - Mark order as repaid
-router.post('/orders/:id/repaid', markAsRepaid);
+// PATCH /api/admin/paylater/orders/:id/repaid - Mark order as repaid
+router.patch('/orders/:id/repaid', markAsRepaid);
 
 // Orders
 // GET /api/admin/paylater/orders - Get all PayLater orders
