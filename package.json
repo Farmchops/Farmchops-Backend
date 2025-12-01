@@ -31,6 +31,7 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.6.0",
+    "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.1",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
@@ -57,6 +58,7 @@
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
+    "node-cron": "^4.2.1",
     "nodemailer": "^7.0.6",
     "paystack-api": "^2.0.6"
   }

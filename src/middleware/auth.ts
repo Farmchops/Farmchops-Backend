@@ -16,8 +16,9 @@ export const authenticateToken = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const authHeader = req.headers['authorization'];
+
   try {
-    const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
@@ -55,7 +56,7 @@ export const authenticateToken = async (
     console.error('[AUTH] Error details:', {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
-      token: authHeader?.substring(0, 20) + '...' // Log first 20 chars only
+      token: (authHeader?.substring(0, 20) || 'none') + '...' // Log first 20 chars only
     });
     res.status(403).json({
       success: false,

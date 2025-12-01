@@ -9,10 +9,10 @@ const generateToken = (userId: string, role: string): string => {
   const payload: TokenPayload = { userId, role };
 
   // Use JWT_EXPIRES_IN as-is (can be "7d", "30m", etc.) or default to 7 days
-  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+  const expiresIn: string = process.env.JWT_EXPIRES_IN || '7d';
 
   const options: SignOptions = {
-    expiresIn
+    expiresIn: expiresIn as any
   };
 
   const secret: Secret = process.env.JWT_SECRET || '';
