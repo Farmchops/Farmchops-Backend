@@ -78,7 +78,7 @@ const PaymentLinkSchema = new Schema({
   expiresAt: {
     type: Date,
     required: true,
-    default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days default
+    default: () => new Date(Date.now() + 60 * 60 * 1000) // 1 hour default
   },
 
   paidBy: {

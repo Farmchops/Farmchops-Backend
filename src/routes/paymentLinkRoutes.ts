@@ -5,7 +5,8 @@ import {
   payPaymentLink,
   verifyPaymentLinkPayment,
   getMyPaymentLinks,
-  cancelPaymentLink
+  cancelPaymentLink,
+  regeneratePaymentLink
 } from '../controllers/paymentLinkController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -30,5 +31,8 @@ router.get('/user/my-links', authenticateToken, getMyPaymentLinks);
 
 // PATCH /api/payment-links/:code/cancel - Cancel a payment link
 router.patch('/:code/cancel', authenticateToken, cancelPaymentLink);
+
+// POST /api/payment-links/:code/regenerate - Regenerate a payment link with new code
+router.post('/:code/regenerate', authenticateToken, regeneratePaymentLink);
 
 export default router;

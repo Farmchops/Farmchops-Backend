@@ -23,7 +23,7 @@ export const createPaymentLink = async (req: AuthRequest, res: Response): Promis
       orderId,
       recipientName,
       recipientPhone,
-      expiresInDays = 7
+      expiresInHours = 1
     } = req.body;
 
     if (!amount || typeof amount !== 'number' || amount < 100) {
@@ -54,8 +54,8 @@ export const createPaymentLink = async (req: AuthRequest, res: Response): Promis
     // Generate unique code
     const code = await PaymentLink.generateUniqueCode();
 
-    // Calculate expiration date
-    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+    // Calculate expiration date (in hours)
+    const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
 
     const paymentLink = await PaymentLink.create({
       code,
@@ -458,6 +458,90 @@ export const cancelPaymentLink = async (req: AuthRequest, res: Response): Promis
     return res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to cancel payment link'
+    });
+  }
+};
+
+// POST /api/payment-links/:code/regenerate - Regenerate a payment link with new code and fresh expiry
+export const regeneratePaymentLink = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { code } = req.params;
+    const { expiresInHours = 1 } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Payment link code is required' });
+    }
+
+    const oldPaymentLink = await PaymentLink.findOne({
+      code: code.toUpperCase(),
+      createdBy: req.user._id
+    });
+
+    if (!oldPaymentLink) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment link not found or does not belong to you'
+      });
+    }
+
+    if (oldPaymentLink.status === 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot regenerate a paid payment link'
+      });
+    }
+
+    // Generate new unique code
+    const newCode = await PaymentLink.generateUniqueCode();
+
+    // Calculate new expiration date (1 hour from now)
+    const newExpiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+
+    // Create new payment link with same details but new code and expiry
+    const newPaymentLink = await PaymentLink.create({
+      code: newCode,
+      createdBy: req.user._id,
+      orderId: oldPaymentLink.orderId,
+      amount: oldPaymentLink.amount,
+      description: oldPaymentLink.description,
+      recipientName: oldPaymentLink.recipientName,
+      recipientPhone: oldPaymentLink.recipientPhone,
+      expiresAt: newExpiresAt,
+      status: 'active'
+    });
+
+    // Cancel the old payment link
+    oldPaymentLink.status = 'cancelled';
+    await oldPaymentLink.save();
+
+    // Generate shareable URL
+    const baseUrl = process.env.FRONTEND_URL || 'https://farmchops.com';
+    const shareableUrl = `${baseUrl}/pay/${newCode}`;
+
+    return res.status(201).json({
+      success: true,
+      message: 'Payment link regenerated successfully',
+      data: {
+        id: newPaymentLink._id,
+        code: newPaymentLink.code,
+        amount: newPaymentLink.amount,
+        description: newPaymentLink.description,
+        recipientName: newPaymentLink.recipientName,
+        expiresAt: newPaymentLink.expiresAt,
+        status: newPaymentLink.status,
+        shareableUrl,
+        createdAt: newPaymentLink.createdAt,
+        oldCode: oldPaymentLink.code
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to regenerate payment link'
     });
   }
 };
