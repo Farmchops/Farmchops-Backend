@@ -352,6 +352,55 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // For wallet payment, debit wallet and mark order as paid
+    if (paymentMethod === 'wallet') {
+      try {
+        // Debit the wallet
+        const debitResult = await walletService.debitWallet(
+          req.user._id,
+          order.totalAmount,
+          `Payment for order ${order.orderNumber}`,
+          order._id
+        );
+
+        if (!debitResult.success) {
+          return res.status(400).json({
+            success: false,
+            message: debitResult.error || 'Insufficient wallet balance',
+            data: { order, handoverCode }
+          });
+        }
+
+        // Mark order as paid
+        order.paymentStatus = 'paid';
+        order.orderStatus = 'ready_for_processing';
+        order.walletTransaction = debitResult.transaction!._id as mongoose.Types.ObjectId;
+        order.paymentReference = debitResult.transaction!.reference;
+        await order.save();
+
+        // Populate order for response
+        await order.populate('items.product', 'name images');
+
+        return res.status(201).json({
+          success: true,
+          message: 'Order created and paid successfully',
+          data: {
+            order,
+            handoverCode,
+            walletBalance: debitResult.newBalance
+          }
+        });
+      } catch (walletError: any) {
+        console.error('Wallet debit error:', walletError);
+        return res.status(500).json({
+          success: false,
+          message: 'Order created but wallet payment failed',
+          error: walletError.message,
+          data: { order, handoverCode }
+        });
+      }
+    }
+
     // For pay_later, include payment link
     if (paymentMethod === 'pay_later') {
       const paymentLink = `${process.env.FRONTEND_URL}/pay/order/${order.orderNumber}`;
