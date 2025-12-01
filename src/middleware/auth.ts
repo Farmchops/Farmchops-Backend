@@ -58,9 +58,14 @@ export const authenticateToken = async (
       message: error instanceof Error ? error.message : String(error),
       token: (authHeader?.substring(0, 20) || 'none') + '...' // Log first 20 chars only
     });
-    res.status(403).json({
+
+    // Check if it's a token expiration error
+    const isTokenExpired = error instanceof Error && error.name === 'TokenExpiredError';
+
+    res.status(401).json({
       success: false,
-      message: 'Invalid or expired token'
+      message: isTokenExpired ? 'Your session has expired. Please log in again.' : 'Invalid token',
+      code: isTokenExpired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN'
     });
   }
 };
