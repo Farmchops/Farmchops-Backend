@@ -42,46 +42,52 @@ const PORT = Number(process.env.PORT) || 5000;
 
 
 // CORS configuration - MUST be FIRST middleware before session, helmet, etc.
-// In development allow the frontend origin(s) flexibly to avoid preflight issues (helps local dev).
-if (process.env.NODE_ENV !== 'production') {
-  app.use(cors({
-    origin: (origin, cb) => cb(null, true), // allow any origin in dev
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    preflightContinue: false,
-    optionsSuccessStatus: 204
-  }));
-  app.use((req, res, next) => {
-    // Log incoming requests in dev to help debug CORS/preflight issues
-    // eslint-disable-next-line no-console
+const allowedOrigins = [
+  'http://localhost:5172',
+  'http://localhost:5173',
+  'http://localhost:5000',
+  'http://localhost:3000',
+  'https://farmchops.com',
+  'https://www.farmchops.com',
+  'https://api.farmchops.com',
+  'https://staging.farmchops.com',
+  'http://staging.farmchops.com'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+
+    // In development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+
+    // In production, check whitelist
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn('[CORS] Blocked request from origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
+// Log incoming requests
+app.use((req, _res, next) => {
+  if (process.env.NODE_ENV !== 'production') {
     console.debug('[DEV] Incoming request:', req.method, req.originalUrl, 'Origin:', req.headers.origin);
-    next();
-  });
-} else {
-  app.use(cors({
-    origin: [
-      'http://localhost:5172',
-      'http://localhost:5173',
-      'http://localhost:5000',
-      'http://localhost:3000',
-      'https://farmchops.com',
-      'https://www.farmchops.com',
-      'https://api.farmchops.com',
-      'https://staging.farmchops.com',
-      'http://staging.farmchops.com'
-    ],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    preflightContinue: false,
-    optionsSuccessStatus: 204
-  }));
-  app.use((req, res, next) => {
+  } else {
     console.log('[CORS] Request from origin:', req.headers.origin);
-    next();
-  });
-}
+  }
+  next();
+});
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
