@@ -111,6 +111,7 @@ export const getOrders = async (req: AuthRequest, res: Response) => {
     const orders = await Order.find(query)
       .populate('user', 'firstName lastName email')
       .populate('items.product', 'name images')
+      .populate('items.deal', 'title discountPercentage startAt endAt')
       .populate('assignedRider.rider', 'firstName lastName phone adminRole')
       .sort(sort)
       .skip((page - 1) * limit)
@@ -149,6 +150,7 @@ export const getOrderById = async (req: AuthRequest, res: Response): Promise<Res
     const order = await Order.findById(id)
       .populate('user', 'firstName lastName email phone')
       .populate('items.product', 'name images')
+      .populate('items.deal', 'title discountPercentage startAt endAt')
       .populate('assignedRider.rider', 'firstName lastName phone adminRole')
       .populate('statusHistory.updatedBy', 'firstName lastName email adminRole');
 
