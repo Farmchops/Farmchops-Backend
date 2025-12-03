@@ -51,6 +51,7 @@ export interface IOrder extends Document {
 
     subtotal: number;
     deliveryFee: number;
+    tax?: number;
     totalAmount: number;
 
     paymentMethod: 'wallet' | 'pay_later' | 'paystack'
@@ -223,6 +224,13 @@ const OrderSchema: Schema = new Schema({
     deliveryFee: {
         type: Number,
         required: [true, 'Delivery fee is required'],
+        min: 0,
+        default: 0
+    },
+
+    tax: {
+        type: Number,
+        required: false,
         min: 0,
         default: 0
     },
@@ -706,7 +714,8 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
     }
 
     const deliveryFee = data.deliveryFee || 0;
-    const totalAmount = subtotal + deliveryFee;
+    const tax = Math.round(subtotal * 0.075); // 7.5% tax on subtotal
+    const totalAmount = subtotal + deliveryFee + tax;
 
     const incrementedDeals: Array<{ dealId: mongoose.Types.ObjectId; quantity: number }> = [];
     let createdRedemptionIds: mongoose.Types.ObjectId[] = [];
@@ -750,6 +759,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             items: orderItems,
             subtotal,
             deliveryFee,
+            tax,
             totalAmount,
             paymentMethod: data.paymentMethod,
             deliveryInfo: data.deliveryInfo,

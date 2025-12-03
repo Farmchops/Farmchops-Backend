@@ -49,11 +49,13 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
 
     const subtotal = cart.totalAmount; // assume stored in same currency unit as prices
     const deliveryFee = calculateFee(subtotal, distanceKm);
+    const tax = Math.round(subtotal * 0.075); // 7.5% tax on subtotal
 
     const totals = {
       subtotal,
       deliveryFee,
-      grandTotal: subtotal + deliveryFee
+      tax,
+      grandTotal: subtotal + deliveryFee + tax
     };
 
     return res.json({
@@ -308,6 +310,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         })),
         subtotal: order.subtotal,
         deliveryFee: order.deliveryFee,
+        tax: order.tax,
         totalAmount: order.totalAmount,
         deliveryAddress: `${deliveryInfo.address}, ${deliveryInfo.city}, ${deliveryInfo.state}`,
         paymentMethod: paymentMethod,

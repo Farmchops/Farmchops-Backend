@@ -229,8 +229,8 @@ export class GroupOrderService {
     for (const participant of group.participants) {
       if (participant.status === 'reserved') {
         try {
-          // Create checkout link specific to this group
-          const checkoutLink = `${process.env.FRONTEND_URL}/group-buy/${group.shareableCode}/checkout`;
+          // Create checkout link to group page where users can checkout
+          const checkoutLink = `${process.env.FRONTEND_URL}/group-buy/${group._id}`;
 
           await emailService.sendGroupReadyEmail(participant.user.email, {
             groupId: group.groupId,

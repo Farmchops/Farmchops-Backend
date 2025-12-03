@@ -342,6 +342,7 @@ class EmailService {
     items: Array<{ productName: string; quantity: number; price: number }>;
     subtotal: number;
     deliveryFee: number;
+    tax?: number;
     totalAmount: number;
     deliveryAddress: string;
     paymentMethod: string;
@@ -412,6 +413,10 @@ class EmailService {
                     <tr>
                         <td colspan="2" style="padding: 10px; text-align: right;">Delivery Fee:</td>
                         <td style="padding: 10px; text-align: right;">₦${(orderData.deliveryFee / 100).toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="padding: 10px; text-align: right;">Tax (7.5%):</td>
+                        <td style="padding: 10px; text-align: right;">₦${((orderData.tax || 0) / 100).toFixed(2)}</td>
                     </tr>
                     <tr class="total-row">
                         <td colspan="2" style="padding: 10px; text-align: right;">Total:</td>

@@ -195,10 +195,10 @@ export const payPaymentLink = async (req: Request, res: Response): Promise<Respo
     const creator = paymentLink.createdBy as any;
     const emailForPaystack = payerEmail || creator?.email || 'customer@farmchops.com';
 
-    // Initialize Paystack transaction
+    // Initialize Paystack transaction (amount must be in kobo)
     const paystackResponse = await paystackService.initializeTransaction(
       emailForPaystack,
-      paymentLink.amount,
+      paymentLink.amount * 100, // Convert to kobo (multiply by 100)
       reference,
       {
         type: 'payment_link',
