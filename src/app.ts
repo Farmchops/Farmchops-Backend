@@ -34,6 +34,7 @@ import walletRoutes from './routes/walletRoutes';
 import paymentLinkRoutes from './routes/paymentLinkRoutes';
 import paylaterRoutes from './routes/paylaterRoutes';
 import adminPaylaterRoutes from './routes/adminPaylaterRoutes';
+import addressRoutes from './routes/addressRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
 import websocketService from './services/websocketService';
 // import placesRoutes from './routes/placesRoutes';
@@ -141,6 +142,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/payment-links', paymentLinkRoutes);
 app.use('/api/paylater', paylaterRoutes);
 app.use('/api/admin/paylater', adminPaylaterRoutes);
+app.use('/api/addresses', addressRoutes);
 // app.use('/api/places', placesRoutes);
 
 
