@@ -691,27 +691,60 @@ export const verifyGroupOrderPayment = async (req: AuthRequest, res: Response): 
         const participant = group.participants[participantIndex]!;
 
         if (participant.status !== 'paid') {
-          participant.status = 'paid';
-          participant.paidAt = new Date();
-          participant.paymentReference = reference;
-
-          // Extract and save delivery info from metadata
-          if (metadata.deliveryInfo) {
-            const parsedDeliveryInfo = typeof metadata.deliveryInfo === 'string'
+          // Extract delivery info and fee from metadata
+          const parsedDeliveryInfo = metadata.deliveryInfo
+            ? (typeof metadata.deliveryInfo === 'string'
               ? JSON.parse(metadata.deliveryInfo)
-              : metadata.deliveryInfo;
-            participant.deliveryInfo = parsedDeliveryInfo;
-          }
+              : metadata.deliveryInfo)
+            : null;
 
-          // Extract and save delivery fee from metadata
-          if (metadata.deliveryFee) {
-            const parsedDeliveryFee = typeof metadata.deliveryFee === 'string'
+          const parsedDeliveryFee = metadata.deliveryFee
+            ? (typeof metadata.deliveryFee === 'string'
               ? parseFloat(metadata.deliveryFee)
-              : metadata.deliveryFee;
-            participant.deliveryFee = parsedDeliveryFee;
-          }
+              : metadata.deliveryFee)
+            : 0;
 
-          await group.save();
+          // Create order and update participant via checkout service
+          try {
+            await GroupOrderService.checkout({
+              groupId: metadata.groupId,
+              userId: req.user!._id as mongoose.Types.ObjectId,
+              deliveryInfo: parsedDeliveryInfo,
+              paymentReference: reference,
+              deliveryFee: parsedDeliveryFee
+            });
+
+            // Refetch group to get updated data with orderId
+            const updatedGroup = await GroupOrder.findOne({ groupId: metadata.groupId });
+            if (updatedGroup) {
+              const updatedParticipant = updatedGroup.participants.find(p =>
+                p.userId.equals(req.user!._id as mongoose.Types.ObjectId)
+              );
+              if (updatedParticipant) {
+                return res.json({
+                  success: true,
+                  message: 'Payment verified and checkout completed',
+                  data: {
+                    groupId: updatedGroup.groupId,
+                    phase: updatedGroup.phase,
+                    participant: {
+                      amount: updatedParticipant.amount,
+                      quantity: updatedParticipant.quantity,
+                      status: updatedParticipant.status,
+                      orderId: updatedParticipant.orderId,
+                      paidAt: updatedParticipant.paidAt
+                    }
+                  }
+                });
+              }
+            }
+          } catch (checkoutError) {
+            console.error('Error creating order during payment verification:', checkoutError);
+            return res.status(500).json({
+              success: false,
+              message: checkoutError instanceof Error ? checkoutError.message : 'Failed to create order'
+            });
+          }
         }
 
         return res.json({

@@ -5,6 +5,7 @@ import { Order } from '../models/Order';
 import User, { IUser } from '../models/User';
 import crypto from 'crypto';
 import emailService from './emailService';
+import websocketService from './websocketService';
 
 export class GroupOrderError extends Error {
   status: number;
