@@ -4,6 +4,7 @@ import User from '../models/User';
 import { Order, IOrder } from '../models/Order';
 import { AuthRequest } from '../middleware/auth';
 import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions, getWorkflowConfig } from '../services/orderWorkflowService';
+import websocketService from '../services/websocketService';
 
 
 // GET /api/admin/orders?search=&status=&page=&limit=&sort=
@@ -113,6 +114,8 @@ export const getOrders = async (req: AuthRequest, res: Response) => {
       .populate('items.product', 'name images')
       .populate('items.deal', 'title discountPercentage startAt endAt')
       .populate('assignedRider.rider', 'firstName lastName phone adminRole')
+      .populate('groupOrder.initiator', 'firstName lastName email')
+      .populate('groupOrder.participants.user', 'firstName lastName email')
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(Number(limit));
@@ -152,7 +155,9 @@ export const getOrderById = async (req: AuthRequest, res: Response): Promise<Res
       .populate('items.product', 'name images')
       .populate('items.deal', 'title discountPercentage startAt endAt')
       .populate('assignedRider.rider', 'firstName lastName phone adminRole')
-      .populate('statusHistory.updatedBy', 'firstName lastName email adminRole');
+      .populate('statusHistory.updatedBy', 'firstName lastName email adminRole')
+      .populate('groupOrder.initiator', 'firstName lastName email')
+      .populate('groupOrder.participants.user', 'firstName lastName email');
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
@@ -206,6 +211,14 @@ const createActionHandler = (action: WorkflowAction) => async (req: AuthRequest,
     });
 
     await populateOrder(result.order);
+
+    // Broadcast order status change to admin WebSocket clients
+    websocketService.broadcastOrderStatusChanged(
+      (result.order._id as mongoose.Types.ObjectId).toString(),
+      result.previousStatus,
+      result.order.orderStatus,
+      result.order
+    );
 
     const availableActions = getAvailableActions(result.order, req.user);
 

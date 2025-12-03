@@ -35,6 +35,7 @@ import paymentLinkRoutes from './routes/paymentLinkRoutes';
 import paylaterRoutes from './routes/paylaterRoutes';
 import adminPaylaterRoutes from './routes/adminPaylaterRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
+import websocketService from './services/websocketService';
 // import placesRoutes from './routes/placesRoutes';
 
 
@@ -232,12 +233,16 @@ async function startServer() {
     startCheckoutWindowExpiryJob();
 
     // Start Express server
-    app.listen(PORT, '0.0.0.0', () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on port ${PORT}`);
       //console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
       //console.log(`Health check: http://localhost:${PORT}/health`);
       //console.log(`API info: http://localhost:${PORT}/api`);
     });
+
+    // Initialize WebSocket service
+    websocketService.initialize(server);
+    console.log('WebSocket service initialized for real-time admin updates');
     
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -245,14 +250,29 @@ async function startServer() {
   }
 }
 
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  websocketService.shutdown();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  websocketService.shutdown();
+  process.exit(0);
+});
+
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
+  websocketService.shutdown();
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  websocketService.shutdown();
   process.exit(1);
 });
 

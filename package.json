@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
+    "@types/ws": "^8.18.1",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
@@ -60,6 +61,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.6",
-    "paystack-api": "^2.0.6"
+    "paystack-api": "^2.0.6",
+    "ws": "^8.18.3"
   }
 }

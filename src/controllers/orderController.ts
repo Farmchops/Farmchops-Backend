@@ -14,6 +14,7 @@ import User from '../models/User';
 import walletService from '../services/walletService';
 import { WalletTransaction } from '../models/WalletTransaction';
 import { PaymentLink } from '../models/PaymentLink';
+import websocketService from '../services/websocketService';
 
 // Fee config (NGN in kobo)
 const BASE_FEE = 200; // base delivery fee
@@ -380,6 +381,10 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
 
         // Populate order for response
         await order.populate('items.product', 'name images');
+        await order.populate('user', 'firstName lastName email');
+
+        // Broadcast order creation to admin WebSocket clients
+        websocketService.broadcastOrderCreated(order);
 
         return res.status(201).json({
           success: true,
@@ -400,6 +405,13 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         });
       }
     }
+
+    // Populate order data for WebSocket broadcasting
+    await order.populate('items.product', 'name images');
+    await order.populate('user', 'firstName lastName email');
+
+    // Broadcast order creation to admin WebSocket clients
+    websocketService.broadcastOrderCreated(order);
 
     // For pay_later, include payment link
     if (paymentMethod === 'pay_later') {
@@ -524,6 +536,18 @@ export const paystackWebhook = async (req: Request, res: Response) => {
         }
         order.providerResponse = event.data;
         await order.save();
+
+        // Populate order for WebSocket broadcast
+        await order.populate('items.product', 'name images');
+        await order.populate('user', 'firstName lastName email');
+
+        // Broadcast order status change to admin WebSocket clients
+        websocketService.broadcastOrderStatusChanged(
+          (order._id as mongoose.Types.ObjectId).toString(),
+          'pending',
+          'ready_for_processing',
+          order
+        );
 
         const user = await User.findById(order.user);
         if (user) {
