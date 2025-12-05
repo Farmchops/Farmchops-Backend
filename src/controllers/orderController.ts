@@ -323,7 +323,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       try {
         const paystackResponse = await paystackService.initializeTransaction(
           user.email,
-          order.totalAmount,
+          Math.round(order.totalAmount * 100), // Convert Naira to kobo for Paystack
           paymentReference!,
           {
             orderId: (order._id as mongoose.Types.ObjectId).toString(),
