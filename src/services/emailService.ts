@@ -644,42 +644,6 @@ class EmailService {
 
             ${handoverCodeSection}
 
-            <div class="divider"></div>
-
-            <div style="margin: 30px 0;">
-                <h3 style="color: #212529; font-size: 18px; margin-bottom: 20px;">What Happens Next?</h3>
-                <div class="timeline">
-                    <div class="timeline-item">
-                        <div class="timeline-icon">1</div>
-                        <div class="timeline-content">
-                            <div class="timeline-title">Order Processing</div>
-                            <div class="timeline-desc">We're picking the freshest produce for your order</div>
-                        </div>
-                    </div>
-                    <div class="timeline-item">
-                        <div class="timeline-icon">2</div>
-                        <div class="timeline-content">
-                            <div class="timeline-title">Quality Check</div>
-                            <div class="timeline-desc">Each item is carefully inspected before packing</div>
-                        </div>
-                    </div>
-                    <div class="timeline-item">
-                        <div class="timeline-icon">3</div>
-                        <div class="timeline-content">
-                            <div class="timeline-title">Out for Delivery</div>
-                            <div class="timeline-desc">Your order will be on its way soon</div>
-                        </div>
-                    </div>
-                    <div class="timeline-item">
-                        <div class="timeline-icon">4</div>
-                        <div class="timeline-content">
-                            <div class="timeline-title">Delivered!</div>
-                            <div class="timeline-desc">Enjoy your fresh produce</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div style="text-align: center; margin: 30px 0;">
                 <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/profile/orders" class="cta-button">View Your Orders</a>
             </div>
@@ -696,16 +660,16 @@ class EmailService {
             </p>
         </div>
         <div class="footer">
-            <div class="footer-logo">🌱 FarmChops</div>
-            <p style="font-weight: 600; color: #495057;">Fresh Produce Delivered to Your Doorstep</p>
-            <p style="margin-top: 15px;">
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}">Shop Again</a> •
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders">My Orders</a> •
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/contact">Contact Us</a>
-            </p>
-            <p style="margin-top: 20px; font-size: 12px; color: #6c757d;">
-                &copy; ${new Date().getFullYear()} FarmChops. All rights reserved.<br>
-                Plot 24 I.T Igbani Street, Off Awolowo Road, Jabi District, Abuja
+            <p style="font-weight: 600; color: #495057; font-size: 14px; margin-bottom: 15px;">For support and inquiries:</p>
+            <p style="color: #6c757d; font-size: 13px; margin: 5px 0;">Email: <a href="mailto:support@farmchops.com" style="color: #28a745; text-decoration: none;">support@farmchops.com</a></p>
+
+            <div style="margin: 20px 0;">
+                <a href="https://www.instagram.com/farmchops_ltd" style="display: inline-block; margin: 0 8px;"><img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Instagram_icon.png" alt="Instagram" style="width: 24px; height: 24px;"></a>
+                <a href="https://x.com/FarmChops_ltd" style="display: inline-block; margin: 0 8px;"><img src="https://upload.wikimedia.org/wikipedia/commons/c/ce/X_logo_2023.svg" alt="X (Twitter)" style="width: 24px; height: 24px;"></a>
+            </div>
+
+            <p style="margin-top: 15px; font-size: 12px; color: #6c757d;">
+                &copy; ${new Date().getFullYear()} FarmChops. All rights reserved.
             </p>
         </div>
     </div>
@@ -874,16 +838,16 @@ The Farmchops Team
             </p>
         </div>
         <div class="footer">
-            <div class="footer-logo">🌱 FarmChops</div>
-            <p style="font-weight: 600; color: #495057;">Fresh Produce Delivered to Your Doorstep</p>
-            <p style="margin-top: 15px;">
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}">Shop Again</a> •
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders">My Orders</a> •
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/contact">Contact Us</a>
-            </p>
-            <p style="margin-top: 20px; font-size: 12px; color: #6c757d;">
-                &copy; ${new Date().getFullYear()} FarmChops. All rights reserved.<br>
-                Plot 24 I.T Igbani Street, Off Awolowo Road, Jabi District, Abuja
+            <p style="font-weight: 600; color: #495057; font-size: 14px; margin-bottom: 15px;">For support and inquiries:</p>
+            <p style="color: #6c757d; font-size: 13px; margin: 5px 0;">Email: <a href="mailto:support@farmchops.com" style="color: #28a745; text-decoration: none;">support@farmchops.com</a></p>
+
+            <div style="margin: 20px 0;">
+                <a href="https://www.instagram.com/farmchops_ltd" style="display: inline-block; margin: 0 8px;"><img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Instagram_icon.png" alt="Instagram" style="width: 24px; height: 24px;"></a>
+                <a href="https://x.com/FarmChops_ltd" style="display: inline-block; margin: 0 8px;"><img src="https://upload.wikimedia.org/wikipedia/commons/c/ce/X_logo_2023.svg" alt="X (Twitter)" style="width: 24px; height: 24px;"></a>
+            </div>
+
+            <p style="margin-top: 15px; font-size: 12px; color: #6c757d;">
+                &copy; ${new Date().getFullYear()} FarmChops. All rights reserved.
             </p>
         </div>
     </div>
