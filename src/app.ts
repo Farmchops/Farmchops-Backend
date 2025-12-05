@@ -35,6 +35,7 @@ import paymentLinkRoutes from './routes/paymentLinkRoutes';
 import paylaterRoutes from './routes/paylaterRoutes';
 import adminPaylaterRoutes from './routes/adminPaylaterRoutes';
 import addressRoutes from './routes/addressRoutes';
+import contactRoutes from './routes/contactRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
 import websocketService from './services/websocketService';
 // import placesRoutes from './routes/placesRoutes';
@@ -122,6 +123,8 @@ app.use(session({
   }
 }));
 
+// Serve static files (for email logo)
+app.use('/public', express.static('public'));
 
 app.use('/api/categories', category)
 app.use('/api/auth', auth)
@@ -143,6 +146,7 @@ app.use('/api/payment-links', paymentLinkRoutes);
 app.use('/api/paylater', paylaterRoutes);
 app.use('/api/admin/paylater', adminPaylaterRoutes);
 app.use('/api/addresses', addressRoutes);
+app.use('/api/contact', contactRoutes);
 // app.use('/api/places', placesRoutes);
 
 

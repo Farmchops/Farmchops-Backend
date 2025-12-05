@@ -40,8 +40,8 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
       return res.status(400).json({ success: false, message: 'Cart is empty' });
     }
 
-    // Server origin (warehouse) - you may want to make this configurable
-    const warehouse = origin || process.env.DEFAULT_WAREHOUSE_COORDS || '6.5244,3.3792';
+    // Server origin (warehouse) - Farmchops warehouse at Jabi District, Abuja
+    const warehouse = origin || process.env.DEFAULT_WAREHOUSE_COORDS || '9.0765,7.4165';
 
     // Use Google Distance Matrix to calculate distance
     const distanceResult = await getDistanceBetween(warehouse, address);
