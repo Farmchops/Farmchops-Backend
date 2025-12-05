@@ -89,7 +89,6 @@ The Farmchops Team
 <body>
     <div class="email-wrapper">
         <div class="header">
-            <img src="${process.env.LOGO_URL || 'https://farmchops.com/logo.png'}" alt="FarmChops Logo" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
             <div class="header-icon">🎉</div>
             <h1>Welcome to FarmChops!</h1>
             <p>Fresh produce delivered to your doorstep</p>
@@ -218,7 +217,6 @@ The Farmchops Team
 <body>
     <div class="email-wrapper">
         <div class="header">
-            <img src="${process.env.LOGO_URL || 'https://farmchops.com/logo.png'}" alt="FarmChops Logo" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
             <div class="header-icon">🔐</div>
             <h1>Password Reset Request</h1>
             <p>Secure your FarmChops account</p>
@@ -588,7 +586,6 @@ class EmailService {
 <body>
     <div class="email-wrapper">
         <div class="header">
-            <img src="${process.env.LOGO_URL || 'https://farmchops.com/logo.png'}" alt="FarmChops Logo" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
             <div class="header-icon">✅</div>
             <h1>Order Confirmed!</h1>
             <p>Your order has been successfully placed</p>
@@ -684,7 +681,7 @@ class EmailService {
             </div>
 
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders/${orderData.orderNumber}" class="cta-button">Track Your Order</a>
+                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders" class="cta-button">View Your Orders</a>
             </div>
 
             <div class="divider"></div>
@@ -816,7 +813,6 @@ The Farmchops Team
 <body>
     <div class="email-wrapper">
         <div class="header">
-            <img src="${process.env.LOGO_URL || 'https://farmchops.com/logo.png'}" alt="FarmChops Logo" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
             <div class="header-icon">💳</div>
             <h1>Payment Successful!</h1>
             <p>Your payment has been confirmed</p>
@@ -862,7 +858,7 @@ The Farmchops Team
             </div>
 
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders/${data.orderNumber}" class="cta-button">Track Your Order</a>
+                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders" class="cta-button">View Your Orders</a>
             </div>
 
             <div class="divider"></div>
@@ -1210,7 +1206,6 @@ The Farmchops Team
 <body>
     <div class="email-wrapper">
         <div class="header">
-            <img src="${process.env.LOGO_URL || 'https://farmchops.com/logo.png'}" alt="FarmChops Logo" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
             <h1>📬 New Contact Message</h1>
             <p>Someone reached out through your website</p>
         </div>
@@ -1349,7 +1344,6 @@ Please respond to the customer at ${data.email}
 <body>
     <div class="email-wrapper">
         <div class="header">
-            <img src="${process.env.LOGO_URL || 'https://farmchops.com/logo.png'}" alt="FarmChops Logo" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
             <div class="header-icon">✉️</div>
             <h1>We Got Your Message!</h1>
             <p>Thank you for reaching out to FarmChops</p>
