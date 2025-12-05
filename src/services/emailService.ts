@@ -681,7 +681,7 @@ class EmailService {
             </div>
 
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders" class="cta-button">View Your Orders</a>
+                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/profile/orders" class="cta-button">View Your Orders</a>
             </div>
 
             <div class="divider"></div>
@@ -858,7 +858,7 @@ The Farmchops Team
             </div>
 
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders" class="cta-button">View Your Orders</a>
+                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/profile/orders" class="cta-button">View Your Orders</a>
             </div>
 
             <div class="divider"></div>

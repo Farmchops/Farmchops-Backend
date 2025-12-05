@@ -297,9 +297,12 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     await order.populate('user', 'firstName lastName email');
     await order.populate('items.product', 'name images');
 
-    // Send order confirmation email
+    // Get user for email
     const user = await User.findById(req.user._id);
-    if (user) {
+
+    // Send order confirmation email only for non-Paystack orders
+    // For Paystack orders, email will be sent after payment verification
+    if (user && paymentMethod !== 'paystack') {
       await emailService.sendOrderConfirmationEmail(user.email, {
         orderNumber: order.orderNumber,
         customerName: `${user.firstName} ${user.lastName}`,
@@ -554,11 +557,22 @@ export const paystackWebhook = async (req: Request, res: Response) => {
 
         const user = await User.findById(order.user);
         if (user) {
-          await emailService.sendPaymentSuccessEmail(user.email, {
+          const handoverCode = (order as any).handoverCodePlain;
+          await emailService.sendOrderConfirmationEmail(user.email, {
             orderNumber: order.orderNumber,
             customerName: `${user.firstName} ${user.lastName}`,
-            amount: order.totalAmount,
-            paymentMethod: 'Paystack'
+            items: order.items.map(item => ({
+              productName: item.productName,
+              quantity: item.quantity,
+              price: item.totalPrice
+            })),
+            subtotal: order.subtotal,
+            deliveryFee: order.deliveryFee,
+            tax: order.tax,
+            totalAmount: order.totalAmount,
+            deliveryAddress: `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`,
+            paymentMethod: 'Paystack',
+            handoverCode
           });
         }
 
@@ -619,11 +633,22 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
 
         const user = await User.findById(order.user);
         if (user) {
-          await emailService.sendPaymentSuccessEmail(user.email, {
+          const handoverCode = (order as any).handoverCodePlain;
+          await emailService.sendOrderConfirmationEmail(user.email, {
             orderNumber: order.orderNumber,
             customerName: `${user.firstName} ${user.lastName}`,
-            amount: order.totalAmount,
-            paymentMethod: 'Paystack'
+            items: order.items.map(item => ({
+              productName: item.productName,
+              quantity: item.quantity,
+              price: item.totalPrice
+            })),
+            subtotal: order.subtotal,
+            deliveryFee: order.deliveryFee,
+            tax: order.tax,
+            totalAmount: order.totalAmount,
+            deliveryAddress: `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`,
+            paymentMethod: 'Paystack',
+            handoverCode
           });
         }
       }
