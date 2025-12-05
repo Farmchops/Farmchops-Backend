@@ -767,46 +767,128 @@ The Farmchops Team
     try {
       const html = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Successful</title>
     <style>
-        .container { max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; }
-        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
-        .content { padding: 30px 20px; }
-        .success-icon { font-size: 48px; text-align: center; margin: 20px 0; }
-        .amount-box { background-color: #d4edda; border: 2px solid #28a745; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px; }
-        .amount { font-size: 32px; font-weight: bold; color: #28a745; }
-        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; color: #6c757d; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f7fa; padding: 20px; line-height: 1.6; }
+        .email-wrapper { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); padding: 50px 30px; text-align: center; }
+        .header-icon { font-size: 80px; margin-bottom: 20px; animation: scaleIn 0.6s ease; }
+        @keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }
+        .header h1 { color: #ffffff; font-size: 32px; font-weight: 700; margin: 0; }
+        .header p { color: rgba(255,255,255,0.95); font-size: 16px; margin-top: 10px; }
+        .content { padding: 40px 30px; }
+        .success-badge { display: inline-flex; align-items: center; background-color: #d4edda; color: #155724; padding: 12px 24px; border-radius: 25px; font-size: 15px; font-weight: 600; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(21, 87, 36, 0.2); }
+        .success-badge::before { content: "✓"; margin-right: 10px; font-size: 20px; }
+        .greeting { font-size: 18px; color: #212529; font-weight: 600; margin-bottom: 20px; }
+        .amount-card { background: linear-gradient(135deg, #d4edda 0%, #e8f5e9 100%); border: 3px solid #28a745; border-radius: 15px; padding: 35px; text-align: center; margin: 30px 0; box-shadow: 0 6px 20px rgba(40, 167, 69, 0.2); }
+        .amount-label { font-size: 14px; color: #155724; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; }
+        .amount-value { font-size: 48px; font-weight: 700; color: #28a745; font-family: 'Courier New', monospace; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); margin: 10px 0; }
+        .currency { font-size: 28px; }
+        .info-grid { background-color: #f8f9fa; border-radius: 10px; padding: 24px; margin: 25px 0; }
+        .info-row { display: flex; padding: 12px 0; border-bottom: 1px solid #e9ecef; }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { font-weight: 600; color: #495057; min-width: 150px; }
+        .info-value { color: #212529; flex: 1; }
+        .next-steps { background-color: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 8px; padding: 20px; margin: 25px 0; }
+        .next-steps h3 { color: #0d47a1; font-size: 16px; margin-bottom: 12px; }
+        .next-steps p { color: #1565c0; font-size: 14px; margin: 8px 0; line-height: 1.8; }
+        .cta-button { display: inline-block; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 25px 0; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); font-size: 15px; }
+        .cta-button:hover { box-shadow: 0 6px 18px rgba(40, 167, 69, 0.4); }
+        .footer { background-color: #f8f9fa; padding: 35px 30px; text-align: center; border-top: 1px solid #e9ecef; }
+        .footer-logo { font-size: 24px; font-weight: 700; color: #28a745; margin-bottom: 12px; }
+        .footer p { color: #6c757d; font-size: 13px; margin: 8px 0; }
+        .footer a { color: #28a745; text-decoration: none; font-weight: 600; }
+        .divider { height: 1px; background: linear-gradient(to right, transparent, #e9ecef, transparent); margin: 35px 0; }
+        @media only screen and (max-width: 600px) {
+            .email-wrapper { border-radius: 0; }
+            .header, .content, .footer { padding: 30px 20px; }
+            .amount-value { font-size: 36px; }
+            .info-row { flex-direction: column; }
+            .info-label { margin-bottom: 4px; }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="email-wrapper">
         <div class="header">
+            <img src="${process.env.LOGO_URL || 'https://farmchops.com/logo.png'}" alt="FarmChops Logo" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+            <div class="header-icon">💳</div>
             <h1>Payment Successful!</h1>
+            <p>Your payment has been confirmed</p>
         </div>
         <div class="content">
-            <div class="success-icon">✓</div>
+            <span class="success-badge">Payment Confirmed</span>
 
-            <p>Dear ${data.customerName},</p>
+            <p class="greeting">Hi ${data.customerName},</p>
 
-            <p>Your payment has been successfully processed!</p>
+            <p style="color: #495057; font-size: 15px; margin-bottom: 25px;">
+                Great news! Your payment has been successfully processed. Thank you for your purchase!
+            </p>
 
-            <div class="amount-box">
-                <div style="font-size: 16px; color: #666; margin-bottom: 10px;">Amount Paid</div>
-                <div class="amount">₦${(data.amount / 100).toFixed(2)}</div>
+            <div class="amount-card">
+                <div class="amount-label">Amount Paid</div>
+                <div class="amount-value">
+                    <span class="currency">₦</span>${(data.amount / 100).toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                </div>
+                <p style="color: #155724; font-size: 13px; margin-top: 10px;">Transaction Completed</p>
             </div>
 
-            <p><strong>Order Number:</strong> ${data.orderNumber}</p>
-            <p><strong>Payment Method:</strong> ${data.paymentMethod.replace('_', ' ').toUpperCase()}</p>
+            <div class="info-grid">
+                <div class="info-row">
+                    <span class="info-label">📦 Order Number</span>
+                    <span class="info-value" style="font-weight: 600; color: #28a745;">${data.orderNumber}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">💳 Payment Method</span>
+                    <span class="info-value">${data.paymentMethod.replace('_', ' ').toUpperCase()}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">✅ Status</span>
+                    <span class="info-value" style="color: #28a745; font-weight: 600;">Paid & Confirmed</span>
+                </div>
+            </div>
 
-            <p>Your order is now being processed and will be shipped soon. We'll keep you updated on its progress.</p>
+            <div class="next-steps">
+                <h3>🚀 What's Next?</h3>
+                <p>• Your order is now being processed by our team</p>
+                <p>• We're picking the freshest produce for you</p>
+                <p>• You'll receive a shipment notification soon</p>
+                <p>• Track your order anytime in your account</p>
+            </div>
 
-            <p>Thank you for shopping with Farmchops!</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders/${data.orderNumber}" class="cta-button">Track Your Order</a>
+            </div>
 
-            <p>Best regards,<br>The Farmchops Team</p>
+            <div class="divider"></div>
+
+            <p style="color: #495057; font-size: 14px; text-align: center; line-height: 1.8;">
+                Questions about your order?<br>
+                Contact us at <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@farmchops.com'}" style="color: #28a745; text-decoration: none; font-weight: 600;">${process.env.SUPPORT_EMAIL || 'support@farmchops.com'}</a>
+            </p>
+
+            <p style="margin-top: 35px; color: #495057; text-align: center;">
+                Thank you for choosing FarmChops!<br>
+                <strong style="color: #28a745;">The FarmChops Team</strong>
+            </p>
         </div>
         <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} Farmchops. All rights reserved.</p>
+            <div class="footer-logo">🌱 FarmChops</div>
+            <p style="font-weight: 600; color: #495057;">Fresh Produce Delivered to Your Doorstep</p>
+            <p style="margin-top: 15px;">
+                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}">Shop Again</a> •
+                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/orders">My Orders</a> •
+                <a href="${process.env.FRONTEND_URL || 'https://farmchops.com'}/contact">Contact Us</a>
+            </p>
+            <p style="margin-top: 20px; font-size: 12px; color: #6c757d;">
+                &copy; ${new Date().getFullYear()} FarmChops. All rights reserved.<br>
+                Plot 24 I.T Igbani Street, Off Awolowo Road, Jabi District, Abuja
+            </p>
         </div>
     </div>
 </body>
