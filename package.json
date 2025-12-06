@@ -7,7 +7,9 @@
     "dev": "nodemon src/app.ts",
     "build": "rm -rf dist && tsc",
     "start": "node dist/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "make-super-admin": "ts-node scripts/makeSuperAdmin.ts",
+    "check-db": "ts-node scripts/checkDbConnection.ts"
   },
   "repository": {
     "type": "git",
