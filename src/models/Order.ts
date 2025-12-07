@@ -284,7 +284,7 @@ const OrderSchema: Schema = new Schema({
         type: String,
         enum: 'paystack',
         required: function(this: IOrder) {
-           return ['paystack', 'flutterwave'].includes(this.paymentMethod);
+           return ['paystack'].includes(this.paymentMethod);
         
     }
   },
@@ -764,7 +764,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             paymentMethod: data.paymentMethod,
             deliveryInfo: data.deliveryInfo,
             paymentReference: data.payementReference,
-            paymentProvider: ['paystack', 'flutterwave'].includes(data.paymentMethod)
+            paymentProvider: ['paystack'].includes(data.paymentMethod)
                 ? data.paymentMethod as 'paystack'
                 : undefined,
             payLaterInfo: data.paymentMethod === 'pay_later' ? {
