@@ -28,7 +28,12 @@ const createTransporter = () => {
 };
 
 // Simple base template
+const resolveSupportEmail = () => {
+  return process.env.SUPPORT_EMAIL || process.env.EMAIL_USER || 'support@farmchops.com';
+};
+
 const createSimpleEmailTemplate = (code: string, message: string) => {
+  const supportEmail = resolveSupportEmail();
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -38,8 +43,8 @@ const createSimpleEmailTemplate = (code: string, message: string) => {
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; }
         .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; }
-        .header { background-color: #000000; padding: 30px; text-align: center; }
-        .logo { color: #28a745; font-size: 24px; font-weight: bold; }
+        .header { background-color: #28a745; padding: 30px; text-align: center; }
+        .logo { color: #ffffff; font-size: 24px; font-weight: bold; }
         .content { padding: 40px 30px; }
         .greeting { color: #333; font-size: 16px; margin-bottom: 20px; }
         .message { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 30px; }
@@ -58,7 +63,7 @@ const createSimpleEmailTemplate = (code: string, message: string) => {
             <div class="message">${message}</div>
             ${code ? `<div class="code">${code}</div>` : ''}
             <div class="footer">
-                If you didn't initiate this request, please ignore this message and contact our support team immediately via our in-app chat or via email at hello@farmchops.com
+            If you didn't initiate this request, please ignore this message and contact our support team immediately via our in-app chat or via email at ${supportEmail}
                 <br><br>
                 Thank you for choosing <span class="footer-brand">Farmchops</span>
             </div>
@@ -100,8 +105,8 @@ const createAdminInviteTemplate = (otp: string, adminRole: string, signupLink: s
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; }
         .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; }
-        .header { background-color: #000000; padding: 30px; text-align: center; }
-        .logo { color: #28a745; font-size: 24px; font-weight: bold; }
+        .header { background-color: #28a745; padding: 30px; text-align: center; }
+        .logo { color: #ffffff; font-size: 24px; font-weight: bold; }
         .content { padding: 40px 30px; }
         .greeting { color: #333; font-size: 16px; margin-bottom: 20px; }
         .message { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
