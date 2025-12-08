@@ -233,67 +233,153 @@ class EmailService {
   // Simplified order confirmation - just essential info
   async sendOrderConfirmationEmail(email: string, orderData: any): Promise<boolean> {
     try {
-      const itemsList = orderData.items.map((item: any) => `${item.productName} x${item.quantity}: ₦${(item.price / 100).toFixed(2)}`).join('\n');
+      const supportEmail = resolveSupportEmail();
+      const normalizeAmount = (value: any) => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') return parseFloat(value) || 0;
+      if (value && typeof value === 'object' && typeof value.toString === 'function') {
+        const parsed = parseFloat(value.toString());
+        return Number.isNaN(parsed) ? 0 : parsed;
+      }
+      return 0;
+      };
+      const formatAmount = (value: any) => `₦${normalizeAmount(value).toLocaleString('en-NG', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      })}`;
+
+      const toTitleCase = (value: string) => value.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase());
+      const readablePaymentMethod = toTitleCase((orderData.paymentMethod || 'wallet').toString().replace(/_/g, ' '));
+      const deliveryAddress = orderData.deliveryAddress || 'Your saved delivery address';
+      const customerName = orderData.customerName || 'there';
+      const hasHandoverCode = Boolean(orderData.handoverCode);
+
+      const itemsList = (orderData.items || [])
+      .map((item: any) => `- ${item.productName} x${item.quantity}: ${formatAmount(item.price)}`)
+      .join('\n');
 
       const text = `
-Hello,
+  Hello ${customerName},
 
-Your order has been confirmed!
+  Your order ${orderData.orderNumber} has been confirmed!
 
-Order Number: ${orderData.orderNumber}
+  Items:
+  ${itemsList || '- Order details are available in the app.'}
 
-Items:
-${itemsList}
+  Subtotal: ${formatAmount(orderData.subtotal)}
+  Delivery Fee: ${formatAmount(orderData.deliveryFee)}
+  Tax: ${formatAmount(orderData.tax)}
+  Total: ${formatAmount(orderData.totalAmount)}
+  Payment Method: ${readablePaymentMethod}
+  Delivery Address: ${deliveryAddress}
 
-Total: ₦${(orderData.totalAmount / 100).toFixed(2)}
+  ${hasHandoverCode ? `Delivery Code: ${orderData.handoverCode}\nPlease share this code with the rider when your order arrives.\n\n` : ''}Need help? Reply to this email or contact ${supportEmail}.
 
-${orderData.handoverCode ? `Delivery Code: ${orderData.handoverCode}\n\n` : ''}Thank you for choosing Farmchops
+  Thank you for choosing Farmchops
       `;
 
       const html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; }
-        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; }
-        .header { background-color: #000000; padding: 30px; text-align: center; }
-        .logo { color: #28a745; font-size: 24px; font-weight: bold; }
-        .content { padding: 40px 30px; }
-        .order-number { background-color: #f0f0f0; padding: 15px; text-align: center; font-size: 20px; font-weight: bold; margin: 20px 0; }
-        .items { margin: 20px 0; }
-        .item { padding: 10px 0; border-bottom: 1px solid #eee; }
-        .total { font-size: 18px; font-weight: bold; margin: 20px 0; padding: 15px; background-color: #f8f8f8; text-align: center; }
-        ${orderData.handoverCode ? '.code { background-color: #fff3cd; border: 2px solid #ffc107; padding: 20px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 4px; margin: 20px 0; }' : ''}
-        .footer-brand { color: #28a745; font-weight: bold; }
+      body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; color: #333333; }
+      .container { max-width: 640px; margin: 32px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07); }
+      .header { background-color: #28a745; padding: 32px 24px; text-align: center; color: #ffffff; }
+      .logo { font-size: 26px; font-weight: 700; letter-spacing: 0.5px; }
+      .status-tag { margin-top: 8px; display: inline-block; padding: 6px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.6); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+      .content { padding: 32px; }
+      .greeting { font-size: 16px; margin-bottom: 12px; }
+      .section { margin-top: 24px; }
+      .section-title { font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px; color: #28a745; font-weight: 700; margin-bottom: 12px; }
+      .order-number { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+      .items-table { width: 100%; border-collapse: collapse; border: 1px solid #f0f0f0; border-radius: 8px; overflow: hidden; }
+      .items-table th { background-color: #f9f9f9; text-align: left; padding: 12px; font-size: 12px; color: #777; text-transform: uppercase; }
+      .items-table td { padding: 12px; border-top: 1px solid #f0f0f0; font-size: 14px; }
+      .items-table tr:last-child td { border-bottom: none; }
+      .items-table .amount { text-align: right; font-weight: 600; }
+      .summary-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
+      .total-row { font-size: 16px; font-weight: 700; border-top: 1px solid #e8e8e8; padding-top: 12px; margin-top: 8px; }
+      .delivery-card { border: 1px solid #e7f4ea; background-color: #f6fff8; border-radius: 10px; padding: 16px; line-height: 1.6; }
+      .code-block { background-color: #fff7e6; border: 1px solid #ffc166; border-radius: 10px; padding: 20px; text-align: center; margin-top: 16px; }
+      .code-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #b26b00; }
+      .code-value { font-size: 28px; font-weight: 700; letter-spacing: 6px; margin: 12px 0; color: #b26b00; }
+      .code-note { font-size: 13px; color: #8a5b00; }
+      .help-text { font-size: 13px; color: #666; margin-top: 24px; }
+      .help-text a { color: #28a745; text-decoration: none; }
+      .signoff { margin-top: 30px; font-size: 14px; color: #777; }
+      .signoff span { color: #28a745; font-weight: 700; }
+      @media (max-width: 480px) {
+        .content { padding: 24px 20px; }
+        .code-value { letter-spacing: 4px; font-size: 24px; }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <div class="header">
-            <div class="logo">Farmchops</div>
+      <div class="header">
+        <div class="logo">Farmchops</div>
+        <div class="status-tag">Order Confirmed</div>
+      </div>
+      <div class="content">
+        <p class="greeting">Hello ${customerName},</p>
+        <p>Thanks for placing your order. We're getting everything ready and will notify you when a rider is on the way.</p>
+
+        <div class="section">
+          <div class="section-title">Order Summary</div>
+          <div class="order-number">Order ${orderData.orderNumber}</div>
+          <table class="items-table">
+            <tr>
+              <th>Item</th>
+              <th style="text-align:right;">Total</th>
+            </tr>
+            ${(orderData.items || []).length
+              ? orderData.items.map((item: any) => `
+            <tr>
+              <td>${item.productName} <span style="color:#888;">×${item.quantity}</span></td>
+              <td class="amount">${formatAmount(item.price)}</td>
+            </tr>`).join('')
+              : '<tr><td colspan="2">Order details are available in the app.</td></tr>'}
+          </table>
         </div>
-        <div class="content">
-            <p>Hello,</p>
-            <p>Your order has been confirmed!</p>
-            <div class="order-number">Order: ${orderData.orderNumber}</div>
-            <div class="items">
-                ${orderData.items.map((item: any) => `<div class="item">${item.productName} x${item.quantity}: ₦${(item.price / 100).toFixed(2)}</div>`).join('')}
-            </div>
-            <div class="total">Total: ₦${(orderData.totalAmount / 100).toFixed(2)}</div>
-            ${orderData.handoverCode ? `
-            <p style="margin-top: 20px;">Please share this code with the rider when your order arrives:</p>
-            <div class="code">${orderData.handoverCode}</div>
-            ` : ''}
-            <p style="margin-top: 30px; font-size: 12px; color: #999;">
-                Thank you for choosing <span class="footer-brand">Farmchops</span>
-            </p>
+
+        <div class="section">
+          <div class="section-title">Payment Breakdown</div>
+          <div class="summary-row"><span>Subtotal</span><span>${formatAmount(orderData.subtotal)}</span></div>
+          <div class="summary-row"><span>Delivery Fee</span><span>${formatAmount(orderData.deliveryFee)}</span></div>
+          <div class="summary-row"><span>Tax & Charges</span><span>${formatAmount(orderData.tax)}</span></div>
+          <div class="summary-row total-row"><span>Total Paid</span><span>${formatAmount(orderData.totalAmount)}</span></div>
         </div>
+
+        <div class="section">
+          <div class="section-title">Delivery Details</div>
+          <div class="delivery-card">
+            <strong>Address</strong>
+            <p style="margin: 4px 0 12px;">${deliveryAddress}</p>
+            <strong>Payment Method</strong>
+            <p style="margin: 4px 0;">${readablePaymentMethod}</p>
+          </div>
+        </div>
+
+        ${hasHandoverCode ? `
+        <div class="section">
+          <div class="section-title">Your Rider Code</div>
+          <div class="code-block">
+            <div class="code-label">Share this code only with the Farmchops rider</div>
+            <div class="code-value">${orderData.handoverCode}</div>
+            <div class="code-note">Use this to confirm delivery. Keep it handy and do not share it until your rider arrives.</div>
+          </div>
+        </div>
+        ` : ''}
+
+        <p class="help-text">Questions about your order? Reply to this email or contact us at <a href="mailto:${supportEmail}">${supportEmail}</a>.</p>
+        <p class="signoff">Thank you for choosing <span>Farmchops</span>.</p>
+      </div>
     </div>
-</body>
-</html>
+  </body>
+  </html>
       `;
 
       const info = await this.getTransporter().sendMail({
