@@ -215,7 +215,7 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
     const token = jwt.sign(
       { userId: admin._id },
       process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
+      { expiresIn: '20d' }
     );
 
     res.status(200).json({

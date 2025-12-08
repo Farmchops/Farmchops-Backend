@@ -208,7 +208,11 @@ class EmailService {
 
   async sendAdminInviteEmail(email: string, otp: string, adminRole: string): Promise<boolean> {
     try {
-      const adminSignupUrl = process.env.ADMIN_SIGNUP_URL || 'https://staging.farmchops.com/admin/signup';
+      const adminSignupUrl =
+        process.env.ADMIN_SIGNUP_URL ||
+        (process.env.NODE_ENV === 'production'
+          ? 'https://farmchops.com/admin/signup'
+          : 'https://staging.farmchops.com/admin/signup');
       const signupLink = `${adminSignupUrl}?email=${encodeURIComponent(email)}`;
       const template = createAdminInviteTemplate(otp, adminRole, signupLink);
       const info = await this.getTransporter().sendMail({
