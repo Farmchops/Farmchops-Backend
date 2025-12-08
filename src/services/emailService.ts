@@ -250,7 +250,7 @@ class EmailService {
 
       const toTitleCase = (value: string) => value.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase());
       const readablePaymentMethod = toTitleCase((orderData.paymentMethod || 'wallet').toString().replace(/_/g, ' '));
-      const deliveryAddress = orderData.deliveryAddress || 'Your saved delivery address';
+      const companyLocation = 'Abuja, Nigeria';
       const customerName = orderData.customerName || 'there';
       const hasHandoverCode = Boolean(orderData.handoverCode);
 
@@ -271,7 +271,7 @@ class EmailService {
   Tax: ${formatAmount(orderData.tax)}
   Total: ${formatAmount(orderData.totalAmount)}
   Payment Method: ${readablePaymentMethod}
-  Delivery Address: ${deliveryAddress}
+  Delivery Address: ${companyLocation}
 
   ${hasHandoverCode ? `Delivery Code: ${orderData.handoverCode}\nPlease share this code with the rider when your order arrives.\n\n` : ''}Need help? Reply to this email or contact ${supportEmail}.
 
@@ -356,8 +356,8 @@ class EmailService {
         <div class="section">
           <div class="section-title">Delivery Details</div>
           <div class="delivery-card">
-            <strong>Address</strong>
-            <p style="margin: 4px 0 12px;">${deliveryAddress}</p>
+                    <strong>Address</strong>
+                    <p style="margin: 4px 0 12px;">${companyLocation}</p>
             <strong>Payment Method</strong>
             <p style="margin: 4px 0;">${readablePaymentMethod}</p>
           </div>

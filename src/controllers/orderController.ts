@@ -291,7 +291,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Clear the cart after successful order creation
     await clearCart(req);
 
-    const handoverCode = (order as any).handoverCodePlain;
+    const handoverCode = order.handoverCodePlain;
 
     // Populate order details for response
     await order.populate('user', 'firstName lastName email');
@@ -521,7 +521,7 @@ export const paystackWebhook = async (req: Request, res: Response) => {
       }
 
       // Handle regular order payment
-      const order = await Order.findOne({ paymentReference: reference });
+      const order = await Order.findOne({ paymentReference: reference }).select('+handoverCodePlain');
 
       if (!order) {
         console.error('Order not found for payment reference:', reference);
@@ -557,7 +557,7 @@ export const paystackWebhook = async (req: Request, res: Response) => {
 
         const user = await User.findById(order.user);
         if (user) {
-          const handoverCode = (order as any).handoverCodePlain;
+          const handoverCode = order.handoverCodePlain;
           await emailService.sendOrderConfirmationEmail(user.email, {
             orderNumber: order.orderNumber,
             customerName: `${user.firstName} ${user.lastName}`,
@@ -606,7 +606,7 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
     const paystackResponse = await paystackService.verifyTransaction(reference);
 
     if (paystackResponse.status && paystackResponse.data.status === 'success') {
-      const order = await Order.findOne({ paymentReference: reference });
+      const order = await Order.findOne({ paymentReference: reference }).select('+handoverCodePlain');
 
       if (!order) {
         return res.status(404).json({ success: false, message: 'Order not found' });
@@ -633,7 +633,7 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
 
         const user = await User.findById(order.user);
         if (user) {
-          const handoverCode = (order as any).handoverCodePlain;
+          const handoverCode = order.handoverCodePlain;
           await emailService.sendOrderConfirmationEmail(user.email, {
             orderNumber: order.orderNumber,
             customerName: `${user.firstName} ${user.lastName}`,

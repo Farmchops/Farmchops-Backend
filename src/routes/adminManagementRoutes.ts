@@ -9,12 +9,13 @@ import {
   deleteAdmin,
   updateAdminPermissions
 } from '../controllers/adminManagementController';
-import { authenticateToken, requireSuperAdmin } from '../middleware/auth';
+import { authenticateToken, requirePermission } from '../middleware/auth';
+import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
 
-// All routes require super admin authentication
-router.use(authenticateToken, requireSuperAdmin);
+// Require admins to hold manage-admins permission (super admins already have it)
+router.use(authenticateToken, requirePermission(PERMISSIONS.MANAGE_ADMINS));
 
 // List all admins with filters
 router.get('/list', listAdmins);

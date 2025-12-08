@@ -105,6 +105,7 @@ export interface IOrder extends Document {
 
     handoverCodeHash?: string;
     handoverCodeMasked?: string;
+    handoverCodePlain?: string;
     handoverCodeIssuedAt?: Date;
     handoverCodeActive: boolean;
     handoverCodeAttempts: number;
@@ -406,6 +407,11 @@ handoverCodeHash: {
     select: false
 },
 
+handoverCodePlain: {
+    type: String,
+    select: false
+},
+
 handoverCodeMasked: {
     type: String,
     default: null
@@ -531,7 +537,7 @@ OrderSchema.pre<IOrder>('save', async function(next) {
 
         if (!this.handoverCodeHash) {
             const { code, hashed, masked } = generateHandoverCode();
-            (this as any).handoverCodePlain = code;
+            this.handoverCodePlain = code;
             this.handoverCodeHash = hashed;
             this.handoverCodeMasked = masked;
             this.handoverCodeIssuedAt = new Date();
@@ -777,9 +783,9 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
 
             await order.save(session ? { session } as any : undefined);
 
-        const handoverCodePlain = (order as any).handoverCodePlain;
+        const handoverCodePlain = order.handoverCodePlain;
         if (handoverCodePlain) {
-            order.set('handoverCodePlain', handoverCodePlain, { strict: false });
+            order.set('handoverCodePlain', handoverCodePlain);
         }
 
         if (data.paymentMethod === 'wallet') {

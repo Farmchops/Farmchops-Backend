@@ -190,6 +190,7 @@ const getActorName = (user: IUser) => {
 const sanitizeOrderForResponse = (order: IOrder) => {
   order.set('handoverCodeHash', undefined, { strict: false });
   order.set('handoverCodeAttempts', undefined, { strict: false });
+  order.set('handoverCodePlain', undefined, { strict: false });
   return order;
 };
 
