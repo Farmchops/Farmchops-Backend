@@ -383,6 +383,15 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     if (uploadedImages.length > 0) {
       await deleteMultipleImages(uploadedImages.map(f => f.path))
     }
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
+      res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: (error as any).errors
+      });
+      return;
+    }
+
     console.error('Create product error:', error);
     res.status(500).json({
       success: false,
