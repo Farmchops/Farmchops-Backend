@@ -25,6 +25,20 @@ export interface IUser extends Document {
   permissions: string[];
   isActive: boolean;
   invitedBy?: mongoose.Types.ObjectId;
+
+  // Referral tracking
+  referredBy?: mongoose.Types.ObjectId;
+  referralCode?: string;
+  referralDate?: Date;
+
+  // First order tracking (for marketer commission - FIRST ORDER ONLY)
+  hasPlacedFirstOrder: boolean;
+
+  // First-time discount tracking
+  hasUsedFirstTimeDiscount: boolean;
+  firstTimeDiscountUsedAt?: Date;
+  firstTimeDiscountOrderId?: mongoose.Types.ObjectId;
+
   createdAt: Date;
   updatedAt: Date;
 
@@ -140,6 +154,46 @@ const UserSchema = new Schema<IUser>({
       default: 0,
       min: [0, 'Wallet balance cannot be negative']
     }
+  },
+
+  // Referral tracking
+  referredBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'Marketer',
+    default: null
+  },
+
+  referralCode: {
+    type: String,
+    default: null
+  },
+
+  referralDate: {
+    type: Date,
+    default: null
+  },
+
+  // First order tracking (for marketer commission - FIRST ORDER ONLY)
+  hasPlacedFirstOrder: {
+    type: Boolean,
+    default: false
+  },
+
+  // First-time discount tracking
+  hasUsedFirstTimeDiscount: {
+    type: Boolean,
+    default: false
+  },
+
+  firstTimeDiscountUsedAt: {
+    type: Date,
+    default: null
+  },
+
+  firstTimeDiscountOrderId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Order',
+    default: null
   }
 }, {
   timestamps: true,
@@ -152,6 +206,9 @@ UserSchema.index({ role: 1 });
 UserSchema.index({ adminRole: 1 });
 UserSchema.index({ isActive: 1 });
 UserSchema.index({ createdAt: -1 });
+UserSchema.index({ referredBy: 1 });
+UserSchema.index({ hasPlacedFirstOrder: 1 });
+UserSchema.index({ hasUsedFirstTimeDiscount: 1 });
 
 const User = mongoose.model<IUser>("User", UserSchema);
 export default User;

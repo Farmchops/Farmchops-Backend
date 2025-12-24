@@ -228,8 +228,24 @@ export function getTierNameForType(product: IProduct, priceType: 'retail' | 'bul
 
 /**
  * Clear cart based on authentication status
+ * @param req - Auth request object (can be partial for webhook context)
+ * @param userId - Optional user ID for clearing cart from webhook context
  */
-export async function clearCart(req: AuthRequest): Promise<void> {
+export async function clearCart(req: Partial<AuthRequest>, userId?: any): Promise<void> {
+  // If userId is explicitly provided (e.g., from webhook), use it
+  if (userId) {
+    await Cart.findOneAndUpdate(
+      { userId },
+      {
+        items: [],
+        totalItems: 0,
+        totalAmount: 0,
+        lastUpdated: new Date()
+      }
+    );
+    return;
+  }
+
   if (req.user) {
     // Logged in - clear database cart
     await Cart.findOneAndUpdate(

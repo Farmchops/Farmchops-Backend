@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ContactMessage } from '../models/ContactMessage';
 import emailService from '../services/emailService';
+import { verifyRecaptcha } from '../utils/recaptcha';
 
 /**
  * POST /api/contact
@@ -8,7 +9,28 @@ import emailService from '../services/emailService';
  */
 export const submitContactForm = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { email, fullName, message } = req.body;
+    const { email, fullName, message, recaptchaToken } = req.body;
+
+    // Verify reCAPTCHA token first
+    if (!recaptchaToken || typeof recaptchaToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'reCAPTCHA verification is required'
+      });
+    }
+
+    const isRecaptchaValid = await verifyRecaptcha(
+      recaptchaToken,
+      'contact_form', // Expected action name
+      0.5 // Minimum score (0.5 is recommended for forms)
+    );
+
+    if (!isRecaptchaValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'reCAPTCHA verification failed. Please try again.'
+      });
+    }
 
     // Validation
     if (!email || typeof email !== 'string') {

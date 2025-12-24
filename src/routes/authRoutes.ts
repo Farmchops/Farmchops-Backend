@@ -9,13 +9,15 @@ import {
   updateProfile,
   sendVerificationEmail,
   verifyEmailAndRegister,
-  resendVerificationEmail
+  resendVerificationEmail,
+  validateReferralCode
 } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-
+// POST /api/auth/validate-referral-code - Validate referral code (public)
+router.post('/validate-referral-code', validateReferralCode);
 
 // POST /api/auth/login - User login (JWT)
 router.post('/login', login);

@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import generateToken from "../utils/generateToken";
 import User from '../models/User';
 import { IUser } from '../models/User';
+import Marketer from '../models/Marketer';
 import { AuthResponse, ResetCodeResponse, ProfileResponse } from '../types/auth.types';
 import emailService from "../services/emailService";
 
@@ -259,6 +260,58 @@ export const logout = async (
 }  
 
 /**
+ * @desc Validate referral code (public endpoint)
+ * @route POST /api/auth/validate-referral-code
+ * @access Public
+ */
+export const validateReferralCode = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const { referralCode } = req.body;
+
+    if (!referralCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Referral code is required"
+      });
+    }
+
+    // Find marketer with matching code (case-insensitive)
+    const marketer = await Marketer.findOne({
+      marketingCode: referralCode.toUpperCase(),
+      status: 'active'
+    });
+
+    if (!marketer) {
+      return res.json({
+        success: true,
+        data: {
+          isValid: false,
+          message: "Invalid or inactive referral code"
+        }
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Valid referral code",
+      data: {
+        isValid: true,
+        marketerName: `${marketer.firstName} ${marketer.lastName}`
+      }
+    });
+  } catch (error) {
+    console.error("Validate referral code error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error validating referral code"
+    });
+  }
+};
+
+/**
  * @desc Send verification email with code
  * @route POST /api/auth/send-verification-email
  * @access Public
@@ -268,7 +321,7 @@ export const sendVerificationEmail = async (
   res: Response<ResetCodeResponse>
 ): Promise<Response<ResetCodeResponse>> => {
   try {
-    const { email } = req.body;
+    const { email, referralCode } = req.body;
 
     // Check if user already exists and is verified
     const existingUser = await User.findOne({ email });
@@ -279,25 +332,55 @@ export const sendVerificationEmail = async (
       });
     }
 
+    // Validate referral code if provided
+    let marketerId: mongoose.Types.ObjectId | null = null;
+    if (referralCode) {
+      const marketer = await Marketer.findOne({
+        marketingCode: referralCode.toUpperCase(),
+        status: 'active'
+      });
+
+      if (marketer) {
+        marketerId = marketer._id as mongoose.Types.ObjectId;
+      }
+      // If invalid code, just ignore it (don't block signup)
+    }
+
     // Generate verification code
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     if (existingUser && !existingUser.profile.isVerified) {
       // Update existing unverified user
-      await User.findByIdAndUpdate(existingUser._id, {
+      const updateData: any = {
         emailVerificationCode: verificationCode,
         emailVerificationExpires: verificationExpires
-      });
+      };
+
+      if (marketerId) {
+        updateData.referredBy = marketerId;
+        updateData.referralCode = referralCode.toUpperCase();
+        updateData.referralDate = new Date();
+      }
+
+      await User.findByIdAndUpdate(existingUser._id, updateData);
     } else {
       // Create temporary user record for verification
-      const tempUser = new User({
+      const tempUserData: any = {
         email,
         emailVerificationCode: verificationCode,
         emailVerificationExpires: verificationExpires,
         profile: { isVerified: false },
         isActive: false // Inactive until verified
-      });
+      };
+
+      if (marketerId) {
+        tempUserData.referredBy = marketerId;
+        tempUserData.referralCode = referralCode.toUpperCase();
+        tempUserData.referralDate = new Date();
+      }
+
+      const tempUser = new User(tempUserData);
       await tempUser.save();
     }
 
@@ -375,6 +458,13 @@ export const verifyEmailAndRegister = async (
       },
       { new: true }
     ).select("-password");
+
+    // If user was referred, increment marketer's signup count
+    if (updatedUser?.referredBy) {
+      await Marketer.findByIdAndUpdate(updatedUser.referredBy, {
+        $inc: { totalSignups: 1 }
+      });
+    }
 
     // Generate token
     const token = generateToken(String(updatedUser!._id), updatedUser!.role);

@@ -36,6 +36,8 @@ import paylaterRoutes from './routes/paylaterRoutes';
 import adminPaylaterRoutes from './routes/adminPaylaterRoutes';
 import addressRoutes from './routes/addressRoutes';
 import contactRoutes from './routes/contactRoutes';
+import marketerRoutes from './routes/marketerRoutes';
+import discountRoutes from './routes/discountRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
 import websocketService from './services/websocketService';
 // import placesRoutes from './routes/placesRoutes';
@@ -54,7 +56,9 @@ const allowedOrigins = [
   'https://www.farmchops.com',
   'https://api.farmchops.com',
   'https://staging.farmchops.com',
-  'http://staging.farmchops.com'
+  'http://staging.farmchops.com',
+  'https://admin.farmchops.com',
+  'https://admin-staging.farmchops.com'
 ];
 
 app.use(cors({
@@ -147,6 +151,9 @@ app.use('/api/paylater', paylaterRoutes);
 app.use('/api/admin/paylater', adminPaylaterRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/admin', marketerRoutes);
+app.use('/api/coupons', discountRoutes);
+app.use('/api/orders', discountRoutes);
 // app.use('/api/places', placesRoutes);
 
 

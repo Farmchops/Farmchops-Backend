@@ -38,6 +38,13 @@ export interface OrderStatusHistoryEntry {
     metadata?: Record<string, any>;
 }
 
+interface IDiscount {
+    type: 'first_time' | 'coupon' | 'marketer_promo';
+    code?: string;
+    amount: number;
+    description: string;
+}
+
 export interface IOrder extends Document {
 
     orderNumber: string;
@@ -49,6 +56,9 @@ export interface IOrder extends Document {
     // Virtuals
     totalItems?: number;
 
+    subtotalBeforeDiscount?: number;
+    discounts?: IDiscount[];
+    totalDiscount: number;
     subtotal: number;
     deliveryFee: number;
     tax?: number;
@@ -114,6 +124,19 @@ export interface IOrder extends Document {
     completedAt?: Date;
     cancelledAt?: Date;
 
+    // Timestamps (automatically added by Mongoose)
+    createdAt: Date;
+    updatedAt: Date;
+
+    // Coupon tracking
+    couponUsed?: mongoose.Types.ObjectId;
+
+    // Marketer attribution
+    attributedToMarketer?: mongoose.Types.ObjectId;
+    marketerCommission: number;
+    commissionPaid: boolean;
+    commissionPaidAt?: Date;
+
     // Instance methods
     processWalletPayment(): Promise<IOrder>;
     cancelOrder(reason?: string): Promise<IOrder>;
@@ -141,6 +164,10 @@ export interface IOrderModel extends Model<IOrder> {
         paymentMethod: 'wallet' | 'pay_later' | 'paystack';
         deliveryFee?: number;
         payementReference?: string;
+        subtotalBeforeDiscount?: number;
+        discounts?: IDiscount[];
+        totalDiscount?: number;
+        couponUsed?: mongoose.Types.ObjectId;
     }, session?: mongoose.ClientSession): Promise<IOrder>;
 }
 
@@ -193,6 +220,27 @@ const OrderItemSchema = new Schema({
     });
     
 
+const DiscountSchema = new Schema({
+    type: {
+        type: String,
+        enum: ['first_time', 'coupon', 'marketer_promo'],
+        required: true
+    },
+    code: {
+        type: String,
+        default: null
+    },
+    amount: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    description: {
+        type: String,
+        required: true
+    }
+}, { _id: false });
+
 const OrderSchema: Schema = new Schema({
     orderNumber: {
         type: String,
@@ -214,6 +262,23 @@ const OrderSchema: Schema = new Schema({
             },
             message: 'Order must contain at least one item'
         }
+    },
+
+    subtotalBeforeDiscount: {
+        type: Number,
+        min: 0,
+        default: null
+    },
+
+    discounts: {
+        type: [DiscountSchema],
+        default: []
+    },
+
+    totalDiscount: {
+        type: Number,
+        default: 0,
+        min: 0
     },
 
     subtotal: {
@@ -473,7 +538,37 @@ statusHistory: [{
   },
 
   completedAt: Date,
-  cancelledAt: Date
+  cancelledAt: Date,
+
+  // Coupon tracking
+  couponUsed: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Coupon',
+    default: null
+  },
+
+  // Marketer attribution
+  attributedToMarketer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Marketer',
+    default: null
+  },
+
+  marketerCommission: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
+  commissionPaid: {
+    type: Boolean,
+    default: false
+  },
+
+  commissionPaidAt: {
+    type: Date,
+    default: null
+  }
 
   }, {
     timestamps: true,
@@ -488,6 +583,9 @@ OrderSchema.index({ paymentStatus: 1 }); // Payment queries
 OrderSchema.index({ paymentReference: 1 }, { unique: true, sparse: true }); // Payment gateway lookups - unique, sparse
 OrderSchema.index({ 'groupOrder.groupId': 1 }); // Group order queries
 OrderSchema.index({ 'payLaterInfo.dueDate': 1, 'payLaterInfo.isPaid': 1 }); // Pay later tracking
+OrderSchema.index({ attributedToMarketer: 1 }); // Marketer reports
+OrderSchema.index({ commissionPaid: 1 }); // Commission payment tracking
+OrderSchema.index({ couponUsed: 1 }); // Coupon usage reports
 
 
 OrderSchema.virtual('totalItems').get(function(this: IOrder) {
@@ -585,7 +683,11 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
     };
     paymentMethod: 'wallet' | 'pay_later' | 'paystack';
     deliveryFee?: number;
-    payementReference?: string
+    payementReference?: string;
+    subtotalBeforeDiscount?: number;
+    discounts?: IDiscount[];
+    totalDiscount?: number;
+    couponUsed?: mongoose.Types.ObjectId;
 }, session?: mongoose.ClientSession) {
     const Product = mongoose.model('Product');
 
@@ -719,9 +821,17 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         }
     }
 
+    // Calculate discount-adjusted amounts
+    const subtotalBeforeDiscount = data.subtotalBeforeDiscount || subtotal;
+    const totalDiscount = data.totalDiscount || 0;
+    const discountedSubtotal = subtotalBeforeDiscount - totalDiscount;
+    
+    // Use the discounted subtotal from discountService if provided, otherwise fall back to calculated subtotal
+    const finalSubtotal = data.subtotalBeforeDiscount ? discountedSubtotal : subtotal;
+    
     const deliveryFee = data.deliveryFee || 0;
-    const tax = Math.round(subtotal * 0.075); // 7.5% tax on subtotal
-    const totalAmount = subtotal + deliveryFee + tax;
+    const tax = Math.round(finalSubtotal * 0.075); // 7.5% tax on discounted subtotal
+    const totalAmount = finalSubtotal + deliveryFee + tax;
 
     const incrementedDeals: Array<{ dealId: mongoose.Types.ObjectId; quantity: number }> = [];
     let createdRedemptionIds: mongoose.Types.ObjectId[] = [];
@@ -763,7 +873,10 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         const order = new this({
             user: data.userId,
             items: orderItems,
-            subtotal,
+            subtotalBeforeDiscount: data.subtotalBeforeDiscount || subtotal,
+            discounts: data.discounts || [],
+            totalDiscount: totalDiscount,
+            subtotal: finalSubtotal,
             deliveryFee,
             tax,
             totalAmount,
@@ -773,6 +886,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             paymentProvider: ['paystack'].includes(data.paymentMethod)
                 ? data.paymentMethod as 'paystack'
                 : undefined,
+            couponUsed: data.couponUsed || undefined,
             payLaterInfo: data.paymentMethod === 'pay_later' ? {
                 dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                 amountDue: totalAmount,

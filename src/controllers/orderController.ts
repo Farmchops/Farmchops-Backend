@@ -15,6 +15,9 @@ import walletService from '../services/walletService';
 import { WalletTransaction } from '../models/WalletTransaction';
 import { PaymentLink } from '../models/PaymentLink';
 import websocketService from '../services/websocketService';
+import { calculateOrderDiscounts } from '../services/discountService';
+import Coupon from '../models/Coupon';
+import Marketer from '../models/Marketer';
 
 // Fee config (NGN in kobo)
 const BASE_FEE = 200; // base delivery fee
@@ -103,7 +106,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     const {
       deliveryInfo,
       paymentMethod,
-      deliveryFee
+      deliveryFee,
+      couponCode
     } = req.body;
 
     // Validate required fields
@@ -268,11 +272,34 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       dealId: item.dealId ? new mongoose.Types.ObjectId(item.dealId) : undefined
     }));
 
+    // Calculate discounts
+    const discountResult = await calculateOrderDiscounts(
+      req.user._id as mongoose.Types.ObjectId,
+      cart.totalAmount,
+      couponCode
+    );
+
+    // Find coupon if code was provided and valid
+    let couponUsed: mongoose.Types.ObjectId | undefined;
+    if (couponCode && discountResult.bestDiscount?.type === 'coupon') {
+      const coupon = await Coupon.findOne({
+        code: couponCode.toUpperCase(),
+        status: 'active'
+      }).session(session);
+      
+      if (coupon) {
+        couponUsed = coupon._id as mongoose.Types.ObjectId;
+      }
+    }
+
     // Generate payment reference for Paystack
     let paymentReference;
     if (paymentMethod === 'paystack') {
       paymentReference = `PAY-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
     }
+
+    // Prepare discount data for order creation
+    const appliedDiscounts = discountResult.bestDiscount ? [discountResult.bestDiscount] : [];
 
     // Create the order within the transaction
     const order = await Order.createIndividualOrder({
@@ -281,15 +308,82 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       deliveryInfo,
       paymentMethod,
       deliveryFee: calculatedDeliveryFee,
-      payementReference: paymentReference
+      payementReference: paymentReference,
+      subtotalBeforeDiscount: cart.totalAmount,
+      discounts: appliedDiscounts,
+      totalDiscount: discountResult.totalDiscount,
+      couponUsed: couponUsed
     }, session);
+
+    // Update coupon usage if a coupon was used
+    if (couponUsed) {
+      const coupon = await Coupon.findById(couponUsed).session(session);
+      if (coupon) {
+        coupon.currentUses += 1;
+        if (!coupon.usedBy.includes(req.user._id as mongoose.Types.ObjectId)) {
+          coupon.usedBy.push(req.user._id as mongoose.Types.ObjectId);
+        }
+
+        // Update status if max uses reached
+        if (coupon.maxUsesTotal && coupon.currentUses >= coupon.maxUsesTotal) {
+          coupon.status = 'inactive';
+        }
+
+        await coupon.save({ session });
+      }
+    }
+
+    // Update user's first-time discount tracking if used
+    const firstTimeDiscount = discountResult.discounts?.find(d => d.type === 'first_time');
+    if (firstTimeDiscount) {
+      const user = await User.findById(req.user._id).session(session);
+      if (user) {
+        user.hasUsedFirstTimeDiscount = true;
+        user.firstTimeDiscountUsedAt = new Date();
+        user.firstTimeDiscountOrderId = order._id as mongoose.Types.ObjectId;
+        await user.save({ session });
+      }
+    }
+
+    // Handle marketer commission for first-time orders from referred users
+    let user = await User.findById(req.user._id)
+      .select('referredBy hasPlacedFirstOrder')
+      .session(session);
+
+    if (user && user.referredBy && !user.hasPlacedFirstOrder) {
+      const marketer = await Marketer.findById(user.referredBy).session(session);
+
+      if (marketer && marketer.status === 'active') {
+        // Calculate commission on subtotal before discount
+        const commissionAmount = Math.round((cart.totalAmount * marketer.commissionRate) / 100);
+
+        // Update order with marketer attribution
+        order.attributedToMarketer = marketer._id as mongoose.Types.ObjectId;
+        order.marketerCommission = commissionAmount;
+        order.commissionPaid = false;
+        await order.save({ session });
+
+        // Update marketer statistics
+        marketer.totalOrders += 1;
+        marketer.totalRevenue += cart.totalAmount;
+        marketer.totalCommission += commissionAmount;
+        marketer.unpaidCommission += commissionAmount;
+        await marketer.save({ session });
+
+        console.log(`Marketer commission: ${commissionAmount} kobo for marketer ${marketer.marketingCode} on order ${order.orderNumber}`);
+      }
+
+      // Mark user as having placed their first order
+      user.hasPlacedFirstOrder = true;
+      await user.save({ session });
+    }
 
     // Commit the transaction
     await session.commitTransaction();
     session.endSession();
 
-    // Clear the cart after successful order creation
-    await clearCart(req);
+    // NOTE: Cart clearing moved to payment verification endpoints
+    // This allows users to go back and change payment methods
 
     const handoverCode = order.handoverCodePlain;
 
@@ -298,7 +392,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     await order.populate('items.product', 'name images');
 
     // Get user for email
-    const user = await User.findById(req.user._id);
+    user = await User.findById(req.user._id);
 
     // Send order confirmation email only for non-Paystack orders
     // For Paystack orders, email will be sent after payment verification
@@ -384,6 +478,9 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         order.walletTransaction = debitResult.transaction!._id as mongoose.Types.ObjectId;
         order.paymentReference = debitResult.transaction!.reference;
         await order.save();
+
+        // Clear cart after successful wallet payment
+        await clearCart(req);
 
         // Populate order for response
         await order.populate('items.product', 'name images');
@@ -543,6 +640,9 @@ export const paystackWebhook = async (req: Request, res: Response) => {
         order.providerResponse = event.data;
         await order.save();
 
+        // Clear cart after successful webhook payment confirmation
+        await clearCart({}, order.user);
+
         // Populate order for WebSocket broadcast
         await order.populate('items.product', 'name images');
         await order.populate('user', 'firstName lastName email');
@@ -630,6 +730,9 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
         }
         order.providerResponse = paystackResponse.data;
         await order.save();
+
+        // Clear cart after successful payment verification
+        await clearCart(req);
 
         const user = await User.findById(order.user);
         if (user) {
