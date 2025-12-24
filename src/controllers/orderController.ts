@@ -286,7 +286,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         code: couponCode.toUpperCase(),
         status: 'active'
       }).session(session);
-      
+
       if (coupon) {
         couponUsed = coupon._id as mongoose.Types.ObjectId;
       }
@@ -298,8 +298,13 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       paymentReference = `PAY-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
     }
 
-    // Prepare discount data for order creation
-    const appliedDiscounts = discountResult.bestDiscount ? [discountResult.bestDiscount] : [];
+    // Prepare discount data for order creation - convert to Order discount format
+    const appliedDiscounts = discountResult.bestDiscount ? [{
+      type: discountResult.bestDiscount.type,
+      code: discountResult.bestDiscount.code,
+      amount: discountResult.bestDiscount.amount,
+      description: discountResult.bestDiscount.description
+    }] : [];
 
     // Create the order within the transaction
     const order = await Order.createIndividualOrder({
@@ -334,8 +339,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     }
 
     // Update user's first-time discount tracking if used
-    const firstTimeDiscount = discountResult.discounts?.find(d => d.type === 'first_time');
-    if (firstTimeDiscount) {
+    if (discountResult.bestDiscount?.type === 'first_time') {
       const user = await User.findById(req.user._id).session(session);
       if (user) {
         user.hasUsedFirstTimeDiscount = true;
