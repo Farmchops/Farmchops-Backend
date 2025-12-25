@@ -12,6 +12,7 @@ dotenv.config();
 dotenv.config();
 
 import DatabaseConnection from './config/database';
+import mongoose from 'mongoose';
 //import RedisConnection from './config/redis';
 
 import category from './routes/categoryRoutes'
@@ -105,19 +106,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Session middleware - AFTER CORS
-const mongoUri = process.env.MONGODB_URI || process.env.AMONGODB_URI;
-if (!mongoUri) {
-  console.error('CRITICAL ERROR: MongoDB URI not found in environment variables!');
-  console.error('Please set either MONGODB_URI or fix the AMONGODB_URI typo in your .env file');
-  process.exit(1);
-}
-
+// Reusing existing Mongoose connection to avoid second DB connection timeout
 app.use(session({
   secret: process.env.SESSION_SECRET || '1233edhkndlfjkneinr93u943',
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({
-    mongoUrl: mongoUri,
+    client: mongoose.connection.getClient() as any,
+    touchAfter: 24 * 3600, // Lazy session update - only update once per 24 hours
     ttl: 7 * 24 * 60 * 60 // 7 days
   }),
   cookie: {
