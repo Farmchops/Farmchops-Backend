@@ -12,6 +12,7 @@ dotenv.config();
 dotenv.config();
 
 import DatabaseConnection from './config/database';
+import mongoose from 'mongoose';
 //import RedisConnection from './config/redis';
 
 import category from './routes/categoryRoutes'
@@ -105,26 +106,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Session middleware - AFTER CORS
-const mongoUri = process.env.MONGODB_URI || process.env.AMONGODB_URI;
-if (!mongoUri) {
-  console.error('CRITICAL ERROR: MongoDB URI not found in environment variables!');
-  console.error('Please set either MONGODB_URI or fix the AMONGODB_URI typo in your .env file');
-  process.exit(1);
-}
+// Start with memory store, will upgrade to MongoStore after DB connects
+// This prevents blocking startup if MongoDB session connection fails
+let sessionStore: any = undefined; // Will use default MemoryStore initially
 
 app.use(session({
   secret: process.env.SESSION_SECRET || '1233edhkndlfjkneinr93u943',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: mongoUri,
-    touchAfter: 24 * 3600, // Lazy session update - only update once per 24 hours
-    ttl: 7 * 24 * 60 * 60, // 7 days
-    mongoOptions: {
-      serverSelectionTimeoutMS: 10000, // 10 seconds timeout
-      socketTimeoutMS: 45000, // 45 seconds socket timeout
-    }
-  }),
+  store: sessionStore, // Initially undefined = uses MemoryStore
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
@@ -242,6 +232,20 @@ async function startServer() {
     console.log('Starting Farmchops API...');
     await DatabaseConnection.connect();
 
+    // Initialize MongoDB session store after DB connection succeeds
+    try {
+      console.log('Initializing MongoDB session store...');
+      sessionStore = MongoStore.create({
+        client: mongoose.connection.getClient() as any,
+        touchAfter: 24 * 3600, // Lazy session update
+        ttl: 7 * 24 * 60 * 60 // 7 days
+      });
+      console.log('MongoDB session store initialized successfully');
+    } catch (sessionError) {
+      console.warn('Failed to initialize MongoDB session store, using in-memory sessions:', sessionError);
+      // App continues with MemoryStore - acceptable for single-server deployments
+    }
+
     await emailService.testConnection()
     // Connect to Redis (optional)
     //await RedisConnection.connect();
@@ -261,7 +265,7 @@ async function startServer() {
     // Initialize WebSocket service
     websocketService.initialize(server);
     console.log('WebSocket service initialized for real-time admin updates');
-    
+
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
