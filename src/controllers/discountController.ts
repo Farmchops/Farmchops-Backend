@@ -8,7 +8,7 @@ import { calculateOrderDiscounts } from '../services/discountService';
  */
 export const calculateDiscounts = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { subtotal, couponCode } = req.body;
+    const { subtotal, couponCode, deliveryFee } = req.body;
     const userId = (req as any).user._id;
 
     if (!subtotal || subtotal <= 0) {
@@ -19,7 +19,7 @@ export const calculateDiscounts = async (req: Request, res: Response): Promise<R
     }
 
     // Calculate all available discounts
-    const discountResult = await calculateOrderDiscounts(userId, subtotal, couponCode);
+    const discountResult = await calculateOrderDiscounts(userId, subtotal, couponCode, deliveryFee);
 
     return res.json({
       success: true,
@@ -28,7 +28,9 @@ export const calculateDiscounts = async (req: Request, res: Response): Promise<R
         discounts: discountResult.discounts,
         bestDiscount: discountResult.bestDiscount,
         totalDiscount: discountResult.totalDiscount,
-        finalSubtotal: discountResult.finalSubtotal
+        finalSubtotal: discountResult.finalSubtotal,
+        hasFreeDelivery: discountResult.hasFreeDelivery,
+        freeDeliveryCoupon: discountResult.freeDeliveryCoupon
       }
     });
   } catch (error) {

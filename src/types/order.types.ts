@@ -4,6 +4,7 @@ export interface CheckoutRequest {
   address: string;
   origin?: string; // Optional warehouse coordinates override
   notes?: string; // Optional customer notes for special instructions
+  couponCode?: string; // Optional coupon code for discount
 }
 
 export interface DeliveryInfo {
@@ -20,9 +21,19 @@ export interface CustomerInfo {
   phone: string;
 }
 
+export interface DiscountInfo {
+  type: 'first_time' | 'coupon' | 'marketer_promo';
+  code?: string;
+  description: string;
+  amount: number;
+}
+
 export interface OrderTotals {
+  subtotalBeforeDiscount: number;
+  discount: number;
   subtotal: number;
   deliveryFee: number;
+  tax: number;
   grandTotal: number;
 }
 
@@ -33,6 +44,7 @@ export interface CheckoutSummaryResponse {
     customerInfo: CustomerInfo;
     delivery: DeliveryInfo;
     notes: string | null;
+    discount: DiscountInfo | null;
     totals: OrderTotals;
   };
   message?: string; // For error messages

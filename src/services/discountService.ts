@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import User from '../models/User';
 import { Order } from '../models/Order';
-import Coupon, { ICoupon } from '../models/Coupon';
+import Coupon from '../models/Coupon';
 import { validateCoupon } from './couponService';
 
 interface DiscountCalculation {
@@ -10,6 +10,7 @@ interface DiscountCalculation {
   description: string;
   amount: number;
   applied: boolean;
+  isFreeDelivery?: boolean; // Flag for free delivery coupons
 }
 
 interface DiscountResult {
@@ -17,18 +18,24 @@ interface DiscountResult {
   bestDiscount: DiscountCalculation | null;
   totalDiscount: number;
   finalSubtotal: number;
+  hasFreeDelivery: boolean; // Flag to indicate if free delivery should be applied
+  freeDeliveryCoupon?: string; // The coupon code for free delivery
 }
 
 /**
  * Calculate all available discounts for an order
  * Automatically selects the best discount (NO STACKING)
+ * Note: Free delivery is handled separately and doesn't compete with other discounts
  */
 export const calculateOrderDiscounts = async (
   userId: mongoose.Types.ObjectId,
   subtotal: number,
-  couponCode?: string
+  couponCode?: string,
+  deliveryFee?: number
 ): Promise<DiscountResult> => {
   const discounts: DiscountCalculation[] = [];
+  let hasFreeDelivery = false;
+  let freeDeliveryCoupon: string | undefined;
 
   // 1. Check first-time discount eligibility
   const user = await User.findById(userId);
@@ -82,8 +89,10 @@ export const calculateOrderDiscounts = async (
         } else if (coupon.discountType === 'fixed_amount') {
           discount = coupon.discountValue;
         } else if (coupon.discountType === 'free_delivery') {
-          // Free delivery - will be handled separately in order creation
-          discount = 0; // Will subtract delivery fee instead
+          // Free delivery coupon - set flag and use delivery fee as discount amount
+          hasFreeDelivery = true;
+          freeDeliveryCoupon = coupon.code;
+          discount = deliveryFee || 0; // Use actual delivery fee for comparison
         }
 
         discounts.push({
@@ -91,7 +100,8 @@ export const calculateOrderDiscounts = async (
           code: coupon.code,
           description: coupon.description,
           amount: discount,
-          applied: false
+          applied: false,
+          isFreeDelivery: coupon.discountType === 'free_delivery'
         });
       }
     }
@@ -107,6 +117,12 @@ export const calculateOrderDiscounts = async (
 
     if (bestDiscount) {
       bestDiscount.applied = true;
+
+      // If best discount is free delivery, set the flag
+      if (bestDiscount.isFreeDelivery) {
+        hasFreeDelivery = true;
+        freeDeliveryCoupon = bestDiscount.code;
+      }
     }
   }
 
@@ -114,7 +130,9 @@ export const calculateOrderDiscounts = async (
     discounts,
     bestDiscount,
     totalDiscount: bestDiscount?.amount || 0,
-    finalSubtotal: subtotal - (bestDiscount?.amount || 0)
+    finalSubtotal: subtotal - (bestDiscount?.isFreeDelivery ? 0 : (bestDiscount?.amount || 0)),
+    hasFreeDelivery,
+    freeDeliveryCoupon
   };
 };
 

@@ -4,6 +4,7 @@ import Marketer from '../models/Marketer';
 import { Order } from '../models/Order';
 import User from '../models/User';
 import CommissionPayment from '../models/CommissionPayment';
+import emailService from '../services/emailService';
 
 /**
  * Generate unique marketing code
@@ -72,6 +73,20 @@ export const createMarketer = async (req: Request, res: Response): Promise<Respo
     });
 
     await marketer.save();
+
+    // Send welcome email to marketer (don't fail if email fails)
+    try {
+      await emailService.sendMarketerWelcomeEmail(email, {
+        firstName,
+        lastName,
+        marketingCode: marketer.marketingCode,
+        commissionRate: marketer.commissionRate
+      });
+      console.log(`Welcome email sent to marketer: ${email}`);
+    } catch (emailError) {
+      console.error('Failed to send welcome email to marketer:', emailError);
+      // Don't fail the marketer creation if email fails
+    }
 
     return res.status(201).json({
       success: true,

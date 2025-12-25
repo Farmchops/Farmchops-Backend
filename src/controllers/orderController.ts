@@ -33,7 +33,7 @@ function calculateFee(subtotal: number, distanceKm: number): number {
 
 export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, CheckoutRequest>, res: Response<CheckoutSummaryResponse>): Promise<Response<CheckoutSummaryResponse>> => {
   try {
-    const { name, phone, address, origin, notes } = req.body;
+    const { name, phone, address, origin, notes, couponCode } = req.body;
     if (!name || !phone || !address) {
       return res.status(400).json({ success: false, message: 'name, phone and address are required' });
     }
@@ -50,15 +50,53 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
     const distanceResult = await getDistanceBetween(warehouse, address);
     const distanceKm = Number((distanceResult.distanceMeters / 1000).toFixed(2));
 
-    const subtotal = cart.totalAmount; // assume stored in same currency unit as prices
-    const deliveryFee = calculateFee(subtotal, distanceKm);
-    const tax = Math.round(subtotal * 0.075); // 7.5% tax on subtotal
+    const subtotalBeforeDiscount = cart.totalAmount;
+    let deliveryFee = calculateFee(subtotalBeforeDiscount, distanceKm);
+
+    // Calculate discounts if user is authenticated
+    let discountInfo: any = null;
+    let finalSubtotal = subtotalBeforeDiscount;
+    let discountAmount = 0;
+
+    if ((req as any).user) {
+      try {
+        const discountResult = await calculateOrderDiscounts(
+          (req as any).user._id,
+          subtotalBeforeDiscount,
+          couponCode,
+          deliveryFee
+        );
+
+        if (discountResult.bestDiscount) {
+          discountInfo = {
+            type: discountResult.bestDiscount.type,
+            code: discountResult.bestDiscount.code,
+            description: discountResult.bestDiscount.description,
+            amount: discountResult.bestDiscount.amount
+          };
+          finalSubtotal = discountResult.finalSubtotal;
+          discountAmount = discountResult.totalDiscount;
+
+          // Apply free delivery if coupon provides it
+          if (discountResult.hasFreeDelivery) {
+            deliveryFee = 0;
+          }
+        }
+      } catch (discountError) {
+        console.error('Discount calculation error:', discountError);
+        // Continue without discount if there's an error
+      }
+    }
+
+    const tax = Math.round(finalSubtotal * 0.075); // 7.5% tax on subtotal after discount
 
     const totals = {
-      subtotal,
+      subtotalBeforeDiscount,
+      discount: discountAmount,
+      subtotal: finalSubtotal,
       deliveryFee,
       tax,
-      grandTotal: subtotal + deliveryFee + tax
+      grandTotal: finalSubtotal + deliveryFee + tax
     };
 
     return res.json({
@@ -78,6 +116,7 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
           fee: deliveryFee
         },
         notes: notes || null,
+        discount: discountInfo,
         totals
       }
     });
@@ -276,8 +315,15 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     const discountResult = await calculateOrderDiscounts(
       req.user._id as mongoose.Types.ObjectId,
       cart.totalAmount,
-      couponCode
+      couponCode,
+      calculatedDeliveryFee
     );
+
+    // Apply free delivery if coupon provides it
+    let finalDeliveryFee = calculatedDeliveryFee;
+    if (discountResult.hasFreeDelivery) {
+      finalDeliveryFee = 0;
+    }
 
     // Find coupon if code was provided and valid
     let couponUsed: mongoose.Types.ObjectId | undefined;
@@ -312,7 +358,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       items: orderItems,
       deliveryInfo,
       paymentMethod,
-      deliveryFee: calculatedDeliveryFee,
+      deliveryFee: finalDeliveryFee,
       payementReference: paymentReference,
       subtotalBeforeDiscount: cart.totalAmount,
       discounts: appliedDiscounts,
