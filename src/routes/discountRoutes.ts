@@ -11,4 +11,7 @@ router.post('/validate', authenticateToken, validateCouponForUser);
 // POST /api/orders/calculate-discounts - Calculate all available discounts
 router.post('/calculate-discounts', authenticateToken, calculateDiscounts);
 
+// Alias for frontend compatibility (singular version)
+router.post('/calculate-discount', authenticateToken, calculateDiscounts);
+
 export default router;
