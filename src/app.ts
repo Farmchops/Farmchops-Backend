@@ -39,6 +39,7 @@ import addressRoutes from './routes/addressRoutes';
 import contactRoutes from './routes/contactRoutes';
 import marketerRoutes from './routes/marketerRoutes';
 import discountRoutes from './routes/discountRoutes';
+import userRoutes from './routes/userRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
 import websocketService from './services/websocketService';
 // import placesRoutes from './routes/placesRoutes';
@@ -149,6 +150,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/admin', marketerRoutes);
 app.use('/api/coupons', discountRoutes);
 app.use('/api/orders', discountRoutes);
+app.use('/api/admin/users', userRoutes);
 // app.use('/api/places', placesRoutes);
 
 
