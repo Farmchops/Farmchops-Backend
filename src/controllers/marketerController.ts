@@ -115,7 +115,9 @@ export const getAllMarketers = async (req: Request, res: Response): Promise<Resp
       status,
       search,
       sortBy = 'createdAt',
-      order = 'desc'
+      order = 'desc',
+      startDate,
+      endDate
     } = req.query;
 
     const pageNum = parseInt(page as string);
@@ -152,11 +154,65 @@ export const getAllMarketers = async (req: Request, res: Response): Promise<Resp
       .limit(limitNum)
       .skip(skip);
 
+    // If date range is provided, enrich marketers with period statistics
+    let enrichedMarketers;
+    if (startDate && endDate) {
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+
+      enrichedMarketers = await Promise.all(
+        marketers.map(async (marketer) => {
+          // Get signups in period
+          const signups = await User.countDocuments({
+            referredBy: marketer._id,
+            createdAt: { $gte: start, $lte: end }
+          });
+
+          // Get orders in period
+          const orders = await Order.find({
+            attributedToMarketer: marketer._id,
+            createdAt: { $gte: start, $lte: end },
+            orderStatus: { $in: ['delivered', 'completed'] }
+          });
+
+          const totalOrders = orders.length;
+          const revenue = orders.reduce((sum, order) => sum + order.subtotal, 0);
+          const commission = orders.reduce((sum, order) => sum + (order.marketerCommission || 0), 0);
+
+          // Get unpaid commission (all time, not period-specific)
+          const unpaidOrders = await Order.find({
+            attributedToMarketer: marketer._id,
+            commissionPaid: false,
+            orderStatus: { $in: ['delivered', 'completed'] }
+          });
+          const unpaidCommission = unpaidOrders.reduce((sum, order) => sum + (order.marketerCommission || 0), 0);
+
+          return {
+            ...marketer.toObject(),
+            periodStats: {
+              signups,
+              orders: totalOrders,
+              revenue,
+              commission,
+              unpaidCommission
+            }
+          };
+        })
+      );
+    } else {
+      // No date filtering - return marketers without period stats
+      enrichedMarketers = marketers.map(m => m.toObject());
+    }
+
     return res.json({
       success: true,
       message: 'Marketers retrieved successfully',
       data: {
-        marketers,
+        marketers: enrichedMarketers,
+        period: startDate && endDate ? {
+          startDate: new Date(startDate as string),
+          endDate: new Date(endDate as string)
+        } : null,
         pagination: {
           total,
           page: pageNum,
@@ -551,11 +607,12 @@ export const getMarketersSummaryReport = async (req: Request, res: Response): Pr
     const start = new Date(startDate as string);
     const end = new Date(endDate as string);
 
-    // Get all active marketers
-    const marketers = await Marketer.find({ status: 'active' });
+    // Get all marketers for counts
+    const allMarketers = await Marketer.find();
+    const activeMarketers = await Marketer.find({ status: 'active' });
 
     const marketersData = await Promise.all(
-      marketers.map(async (marketer) => {
+      activeMarketers.map(async (marketer) => {
         // Get signups in period
         const signups = await User.countDocuments({
           referredBy: marketer._id,
@@ -573,7 +630,7 @@ export const getMarketersSummaryReport = async (req: Request, res: Response): Pr
         const revenue = orders.reduce((sum, order) => sum + order.subtotal, 0);
         const commission = orders.reduce((sum, order) => sum + (order.marketerCommission || 0), 0);
 
-        // Get unpaid commission
+        // Get unpaid commission (all time)
         const unpaidOrders = await Order.find({
           attributedToMarketer: marketer._id,
           commissionPaid: false,
@@ -594,26 +651,30 @@ export const getMarketersSummaryReport = async (req: Request, res: Response): Pr
       })
     );
 
+    // Filter out marketers with zero activity (no signups AND no orders)
+    const marketersWithActivity = marketersData.filter(m => m.signups > 0 || m.orders > 0);
+
     // Sort
     if (sortBy === 'revenue') {
-      marketersData.sort((a, b) => b.revenue - a.revenue);
+      marketersWithActivity.sort((a, b) => b.revenue - a.revenue);
     } else if (sortBy === 'orders') {
-      marketersData.sort((a, b) => b.orders - a.orders);
+      marketersWithActivity.sort((a, b) => b.orders - a.orders);
     } else if (sortBy === 'signups') {
-      marketersData.sort((a, b) => b.signups - a.signups);
+      marketersWithActivity.sort((a, b) => b.signups - a.signups);
     } else if (sortBy === 'commission') {
-      marketersData.sort((a, b) => b.commission - a.commission);
+      marketersWithActivity.sort((a, b) => b.commission - a.commission);
     }
 
     // Calculate summary
     const summary = {
-      totalMarketers: marketers.length,
-      activeMarketers: marketers.filter(m => m.status === 'active').length,
-      totalSignups: marketersData.reduce((sum, m) => sum + m.signups, 0),
-      totalOrders: marketersData.reduce((sum, m) => sum + m.orders, 0),
-      totalRevenue: marketersData.reduce((sum, m) => sum + m.revenue, 0),
-      totalCommission: marketersData.reduce((sum, m) => sum + m.commission, 0),
-      totalUnpaidCommission: marketersData.reduce((sum, m) => sum + m.unpaidCommission, 0)
+      totalMarketers: allMarketers.length,
+      activeMarketers: activeMarketers.length,
+      marketersWithActivity: marketersWithActivity.length,
+      totalSignups: marketersWithActivity.reduce((sum, m) => sum + m.signups, 0),
+      totalOrders: marketersWithActivity.reduce((sum, m) => sum + m.orders, 0),
+      totalRevenue: marketersWithActivity.reduce((sum, m) => sum + m.revenue, 0),
+      totalCommission: marketersWithActivity.reduce((sum, m) => sum + m.commission, 0),
+      totalUnpaidCommission: marketersWithActivity.reduce((sum, m) => sum + m.unpaidCommission, 0)
     };
 
     return res.json({
@@ -621,7 +682,7 @@ export const getMarketersSummaryReport = async (req: Request, res: Response): Pr
       data: {
         period: { startDate: start, endDate: end },
         summary,
-        marketers: marketersData
+        marketers: marketersWithActivity
       }
     });
   } catch (error) {
