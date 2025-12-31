@@ -15,7 +15,7 @@ const categoryStorage = new CloudinaryStorage({
 export const uploadCategoryImage = multer({
   storage: categoryStorage,
   limits: {
-    fileSize: 2 * 1024 * 1024 // 2MB
+    fileSize: 15 * 1024 * 1024 // 15MB
   }
 });
 
@@ -32,7 +32,7 @@ const productStorage = new CloudinaryStorage({
 export const uploadProductImages = multer({
   storage: productStorage,
   limits: {
-    fileSize: 2 * 1024 * 1024 // 2MB per file
+    fileSize: 15 * 1024 * 1024 // 15MB per file
   }
 });
 

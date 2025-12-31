@@ -66,10 +66,15 @@ export const getAllUsers = async (req: Request, res: Response): Promise<Response
           ? orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
           : null;
 
+        // Extract username from email if names are missing
+        const emailUsername = user.email.split('@')[0];
+        const displayFirstName = user.firstName || emailUsername;
+        const displayLastName = user.lastName || '';
+
         return {
           _id: user._id,
-          firstName: user.firstName || 'N/A',
-          lastName: user.lastName || 'N/A',
+          firstName: displayFirstName,
+          lastName: displayLastName,
           email: user.email,
           phone: user.phone || 'N/A',
           walletBalance: user.wallet?.balance || 0,
