@@ -7,20 +7,32 @@ import CommissionPayment from '../models/CommissionPayment';
 import emailService from '../services/emailService';
 
 /**
- * Generate unique marketing code
+ * Generate unique marketing code in format FCM001, FCM002, etc.
  */
 const generateMarketingCode = async (): Promise<string> => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
+  // Find the highest existing code number
+  const lastMarketer = await Marketer.findOne({
+    marketingCode: { $regex: /^FCM\d{3}$/ }
+  }).sort({ marketingCode: -1 });
 
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  let nextNumber = 1;
+  if (lastMarketer && lastMarketer.marketingCode) {
+    // Extract the number from the last code (e.g., "FCM001" -> 1)
+    const match = lastMarketer.marketingCode.match(/FCM(\d{3})/);
+    if (match && match[1]) {
+      nextNumber = parseInt(match[1], 10) + 1;
+    }
   }
 
-  // Check if code exists
+  // Format as FCM001, FCM002, etc. (3-digit zero-padded)
+  const code = `FCM${String(nextNumber).padStart(3, '0')}`;
+
+  // Double-check uniqueness
   const existing = await Marketer.findOne({ marketingCode: code });
   if (existing) {
-    return generateMarketingCode(); // Retry if duplicate
+    // If somehow exists, increment and retry
+    nextNumber++;
+    return `FCM${String(nextNumber).padStart(3, '0')}`;
   }
 
   return code;
