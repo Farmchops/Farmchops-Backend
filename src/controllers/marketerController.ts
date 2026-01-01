@@ -127,7 +127,9 @@ export const getAllMarketers = async (req: Request, res: Response): Promise<Resp
     // Build query
     const query: any = {};
 
-    if (status) {
+    // Only filter by status if no date range is provided
+    // When date range is provided, show all marketers regardless of status
+    if (status && !startDate && !endDate) {
       query.status = status;
     }
 
