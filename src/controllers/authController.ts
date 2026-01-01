@@ -280,9 +280,9 @@ export const validateReferralCode = async (
 
     // Find marketer with matching code (case-insensitive)
     const marketer = await Marketer.findOne({
-      marketingCode: referralCode.toUpperCase(),
-      status: 'active'
+      marketingCode: referralCode.toUpperCase()
     });
+    console.log(`[MARKETER] Validation - Code: ${referralCode}, Found: ${!!marketer}, ID: ${marketer?._id}`);
 
     if (!marketer) {
       return res.json({
@@ -336,12 +336,15 @@ export const sendVerificationEmail = async (
     let marketerId: mongoose.Types.ObjectId | null = null;
     if (referralCode) {
       const marketer = await Marketer.findOne({
-        marketingCode: referralCode.toUpperCase(),
-        status: 'active'
+        marketingCode: referralCode.toUpperCase()
       });
+      console.log(`[MARKETER] Send Verification - Code: ${referralCode}, Found: ${!!marketer}, ID: ${marketer?._id}`);
 
       if (marketer) {
         marketerId = marketer._id as mongoose.Types.ObjectId;
+        console.log(`[MARKETER] Marketer ID set to: ${marketerId}`);
+      } else {
+        console.log(`[MARKETER] WARNING - Referral code not found: ${referralCode}`);
       }
       // If invalid code, just ignore it (don't block signup)
     }
@@ -361,6 +364,7 @@ export const sendVerificationEmail = async (
         updateData.referredBy = marketerId;
         updateData.referralCode = referralCode.toUpperCase();
         updateData.referralDate = new Date();
+        console.log(`[MARKETER] Updating EXISTING user with referral - UserID: ${existingUser._id}, MarketerID: ${marketerId}`);
       }
 
       await User.findByIdAndUpdate(existingUser._id, updateData);
@@ -378,6 +382,7 @@ export const sendVerificationEmail = async (
         tempUserData.referredBy = marketerId;
         tempUserData.referralCode = referralCode.toUpperCase();
         tempUserData.referralDate = new Date();
+        console.log(`[MARKETER] Creating NEW user with referral - Email: ${email}, MarketerID: ${marketerId}`);
       }
 
       const tempUser = new User(tempUserData);
@@ -426,6 +431,7 @@ export const verifyEmailAndRegister = async (
       emailVerificationCode: verificationCode,
       emailVerificationExpires: { $gt: new Date() }
     });
+    console.log(`[MARKETER] Verify Email - User found: ${!!user}, Email: ${email}, ReferredBy: ${user?.referredBy}`);
 
     if (!user) {
       return res.status(400).json({
@@ -460,10 +466,17 @@ export const verifyEmailAndRegister = async (
     ).select("-password");
 
     // If user was referred, increment marketer's signup count
+    console.log(`[MARKETER] Checking if user was referred - ReferredBy: ${updatedUser?.referredBy}`);
     if (updatedUser?.referredBy) {
-      await Marketer.findByIdAndUpdate(updatedUser.referredBy, {
-        $inc: { totalSignups: 1 }
-      });
+      console.log(`[MARKETER] Incrementing totalSignups for marketer: ${updatedUser.referredBy}`);
+      const marketerUpdate = await Marketer.findByIdAndUpdate(
+        updatedUser.referredBy,
+        { $inc: { totalSignups: 1 } },
+        { new: true }
+      );
+      console.log(`[MARKETER] SUCCESS - Updated marketer totalSignups to: ${marketerUpdate?.totalSignups}`);
+    } else {
+      console.log(`[MARKETER] WARNING - No referredBy found, totalSignups NOT incremented`);
     }
 
     // Generate token

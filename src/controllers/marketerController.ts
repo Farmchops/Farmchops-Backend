@@ -607,12 +607,12 @@ export const getMarketersSummaryReport = async (req: Request, res: Response): Pr
     const start = new Date(startDate as string);
     const end = new Date(endDate as string);
 
-    // Get all marketers for counts
+    // Get ALL marketers (regardless of activity)
     const allMarketers = await Marketer.find();
-    const activeMarketers = await Marketer.find({ status: 'active' });
 
+    // Calculate stats for each marketer in the selected period
     const marketersData = await Promise.all(
-      activeMarketers.map(async (marketer) => {
+      allMarketers.map(async (marketer) => {
         // Get signups in period
         const signups = await User.countDocuments({
           referredBy: marketer._id,
@@ -642,6 +642,7 @@ export const getMarketersSummaryReport = async (req: Request, res: Response): Pr
           marketerId: marketer._id,
           name: `${marketer.firstName} ${marketer.lastName}`,
           code: marketer.marketingCode,
+          status: marketer.status,
           signups,
           orders: totalOrders,
           revenue,
@@ -651,30 +652,30 @@ export const getMarketersSummaryReport = async (req: Request, res: Response): Pr
       })
     );
 
-    // Filter out marketers with zero activity (no signups AND no orders)
-    const marketersWithActivity = marketersData.filter(m => m.signups > 0 || m.orders > 0);
-
-    // Sort
+    // Sort all marketers by selected field
     if (sortBy === 'revenue') {
-      marketersWithActivity.sort((a, b) => b.revenue - a.revenue);
+      marketersData.sort((a, b) => b.revenue - a.revenue);
     } else if (sortBy === 'orders') {
-      marketersWithActivity.sort((a, b) => b.orders - a.orders);
+      marketersData.sort((a, b) => b.orders - a.orders);
     } else if (sortBy === 'signups') {
-      marketersWithActivity.sort((a, b) => b.signups - a.signups);
+      marketersData.sort((a, b) => b.signups - a.signups);
     } else if (sortBy === 'commission') {
-      marketersWithActivity.sort((a, b) => b.commission - a.commission);
+      marketersData.sort((a, b) => b.commission - a.commission);
     }
 
-    // Calculate summary
+    // Calculate summary stats
+    const activeMarketers = marketersData.filter(m => m.status === 'active');
+    const marketersWithActivity = marketersData.filter(m => m.signups > 0 || m.orders > 0);
+
     const summary = {
       totalMarketers: allMarketers.length,
       activeMarketers: activeMarketers.length,
       marketersWithActivity: marketersWithActivity.length,
-      totalSignups: marketersWithActivity.reduce((sum, m) => sum + m.signups, 0),
-      totalOrders: marketersWithActivity.reduce((sum, m) => sum + m.orders, 0),
-      totalRevenue: marketersWithActivity.reduce((sum, m) => sum + m.revenue, 0),
-      totalCommission: marketersWithActivity.reduce((sum, m) => sum + m.commission, 0),
-      totalUnpaidCommission: marketersWithActivity.reduce((sum, m) => sum + m.unpaidCommission, 0)
+      totalSignups: marketersData.reduce((sum, m) => sum + m.signups, 0),
+      totalOrders: marketersData.reduce((sum, m) => sum + m.orders, 0),
+      totalRevenue: marketersData.reduce((sum, m) => sum + m.revenue, 0),
+      totalCommission: marketersData.reduce((sum, m) => sum + m.commission, 0),
+      totalUnpaidCommission: marketersData.reduce((sum, m) => sum + m.unpaidCommission, 0)
     };
 
     return res.json({
@@ -682,7 +683,7 @@ export const getMarketersSummaryReport = async (req: Request, res: Response): Pr
       data: {
         period: { startDate: start, endDate: end },
         summary,
-        marketers: marketersWithActivity
+        marketers: marketersData  // Return ALL marketers with their period stats
       }
     });
   } catch (error) {
