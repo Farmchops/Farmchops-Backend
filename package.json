@@ -64,6 +64,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.6",
     "paystack-api": "^2.0.6",
+    "sharp": "^0.34.5",
     "ws": "^8.18.3"
   }
 }

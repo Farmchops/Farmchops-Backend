@@ -1,38 +1,41 @@
 import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import cloudinary from '../config/cloudinary';
+import CompressedCloudinaryStorage from './compressedCloudinaryStorage';
 
-// Category Image Upload
-const categoryStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'farmchops/categories',
-    allowed_formats: ['jpg', 'jpeg', 'png'],
-    transformation: [{ width: 500, height: 500, crop: 'limit' }]
-  } as any
-});
+// Category Image Upload with Sharp compression
+const categoryStorage = new CompressedCloudinaryStorage({
+  folder: 'farmchops/categories',
+  allowed_formats: ['jpg', 'jpeg', 'png'],
+  compression: {
+    maxWidth: 800,
+    maxHeight: 800,
+    quality: 85
+  }
+}) as any;
 
 export const uploadCategoryImage = multer({
   storage: categoryStorage,
   limits: {
-    fileSize: 15 * 1024 * 1024 // 15MB
+    fileSize: 25 * 1024 * 1024 // 25MB (Sharp will compress to ~1-3MB before Cloudinary upload)
   }
 });
 
-// Product Images Upload (up to 5)
-const productStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'farmchops/products',
-    allowed_formats: ['jpg', 'jpeg', 'png'],
-    transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
-  } as any
-});
+// Product Images Upload with Sharp compression (up to 5)
+const productStorage = new CompressedCloudinaryStorage({
+  folder: 'farmchops/products',
+  allowed_formats: ['jpg', 'jpeg', 'png'],
+  compression: {
+    maxWidth: 2000,
+    maxHeight: 2000,
+    quality: 85
+  }
+}) as any;
 
 export const uploadProductImages = multer({
   storage: productStorage,
   limits: {
-    fileSize: 15 * 1024 * 1024 // 15MB per file
+    fileSize: 25 * 1024 * 1024 // 25MB (Sharp will compress to ~3-5MB before Cloudinary upload)
   }
 });
 
@@ -53,20 +56,22 @@ export const uploadVendorDoc = multer({
   }
 });
 
-// PayLater Application Documents (NIN card, passport photo)
-const paylaterStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'farmchops/paylater-applications',
-    allowed_formats: ['jpg', 'jpeg', 'png'],
-    transformation: [{ width: 2000, height: 2000, crop: 'limit', quality: 'auto' }]
-  } as any
-});
+// PayLater Application Documents (NIN card, passport photo) with Sharp compression
+// Higher quality (90%) for ID verification documents
+const paylaterStorage = new CompressedCloudinaryStorage({
+  folder: 'farmchops/paylater-applications',
+  allowed_formats: ['jpg', 'jpeg', 'png'],
+  compression: {
+    maxWidth: 2000,
+    maxHeight: 2000,
+    quality: 90 // Higher quality for ID verification
+  }
+}) as any;
 
 export const uploadPaylaterImages = multer({
   storage: paylaterStorage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB per file
+    fileSize: 25 * 1024 * 1024 // Increased to 25MB to match other uploads
   },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
