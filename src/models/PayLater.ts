@@ -9,8 +9,44 @@ export interface IPayLaterApplication extends Document {
   gender: 'male' | 'female';
   phoneNumber: string;
   bvn: string;
-  nin: string;
-  status: 'pending' | 'approved' | 'rejected';
+  ippis: string; // Government worker IPPIS number
+  nin: string | null; // Extracted by Prembly OCR (auto-populated)
+  ninCardImage: string; // URL to front of NIN card
+  passportPhoto: string; // URL to passport photograph
+  verificationStatus: 'pending' | 'in_progress' | 'verified' | 'failed';
+  verificationResults: {
+    ippis: {
+      verified: boolean;
+      confidence?: number;
+      verifiedAt?: Date;
+      error?: string;
+      premblyResponse?: any;
+    };
+    bvn: {
+      verified: boolean;
+      confidence?: number;
+      verifiedAt?: Date;
+      error?: string;
+      premblyResponse?: any;
+    };
+    nin: {
+      verified: boolean;
+      extractedNumber?: string;
+      confidence?: number;
+      verifiedAt?: Date;
+      error?: string;
+      premblyResponse?: any;
+    };
+    faceMatch: {
+      matched: boolean;
+      confidence?: number;
+      verifiedAt?: Date;
+      error?: string;
+    };
+  };
+  verificationScore: number; // 0-100
+  verifiedAt: Date | null;
+  status: 'pending' | 'approved' | 'rejected' | 'verified';
   creditLimit: number | null;
   reviewedBy: Types.ObjectId | null;
   reviewedAt: Date | null;
@@ -56,14 +92,72 @@ const PayLaterApplicationSchema = new Schema<IPayLaterApplication>({
     required: true,
     trim: true
   },
-  nin: {
+  ippis: {
     type: String,
     required: true,
     trim: true
   },
+  nin: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  ninCardImage: {
+    type: String,
+    required: true
+  },
+  passportPhoto: {
+    type: String,
+    required: true
+  },
+  verificationStatus: {
+    type: String,
+    enum: ['pending', 'in_progress', 'verified', 'failed'],
+    default: 'pending'
+  },
+  verificationResults: {
+    ippis: {
+      verified: { type: Boolean, default: false },
+      confidence: { type: Number },
+      verifiedAt: { type: Date },
+      error: { type: String },
+      premblyResponse: { type: Schema.Types.Mixed }
+    },
+    bvn: {
+      verified: { type: Boolean, default: false },
+      confidence: { type: Number },
+      verifiedAt: { type: Date },
+      error: { type: String },
+      premblyResponse: { type: Schema.Types.Mixed }
+    },
+    nin: {
+      verified: { type: Boolean, default: false },
+      extractedNumber: { type: String },
+      confidence: { type: Number },
+      verifiedAt: { type: Date },
+      error: { type: String },
+      premblyResponse: { type: Schema.Types.Mixed }
+    },
+    faceMatch: {
+      matched: { type: Boolean, default: false },
+      confidence: { type: Number },
+      verifiedAt: { type: Date },
+      error: { type: String }
+    }
+  },
+  verificationScore: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  verifiedAt: {
+    type: Date,
+    default: null
+  },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
+    enum: ['pending', 'approved', 'rejected', 'verified'],
     default: 'pending'
   },
   creditLimit: {

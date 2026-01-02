@@ -13,6 +13,7 @@ import {
   getOrderById
 } from '../controllers/paylaterController';
 import { authenticateToken } from '../middleware/auth';
+import { uploadPaylaterImages } from '../middleware/uploadMiddleware';
 
 const router = Router();
 
@@ -20,8 +21,11 @@ const router = Router();
 router.use(authenticateToken);
 
 // Application
-// POST /api/paylater/apply - Submit PayLater application
-router.post('/apply', submitApplication);
+// POST /api/paylater/apply - Submit PayLater application with document uploads
+router.post('/apply', uploadPaylaterImages.fields([
+  { name: 'ninCardImage', maxCount: 1 },
+  { name: 'passportPhoto', maxCount: 1 }
+]), submitApplication);
 
 // GET /api/paylater/status - Get user's PayLater status
 router.get('/status', getStatus);

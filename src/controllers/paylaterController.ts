@@ -8,25 +8,44 @@ import {
 } from '../models/PayLater';
 import { Product } from '../models/Product';
 import paylaterService from '../services/paylaterService';
+import premblyService from '../services/premblyService';
+import { convertCloudinaryUrlToBase64 } from '../middleware/uploadMiddleware';
 
 interface AuthRequest extends Request {
   user?: any;
 }
 
-// POST /api/paylater/apply - Submit PayLater application
+// POST /api/paylater/apply - Submit PayLater application with Prembly verification
 export const submitApplication = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {
     if (!req.user) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { email, firstName, lastName, gender, phoneNumber, bvn, nin } = req.body;
+    const { email, firstName, lastName, gender, phoneNumber, ippis, bvn } = req.body;
 
-    // Validation
-    if (!email || !firstName || !lastName || !gender || !phoneNumber || !bvn || !nin) {
+    // Validate uploaded files
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+
+    if (!files || !files.ninCardImage || !files.ninCardImage[0]) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required: email, firstName, lastName, gender, phoneNumber, bvn, nin'
+        message: 'NIN card image (front) is required'
+      });
+    }
+
+    if (!files.passportPhoto || !files.passportPhoto[0]) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passport photograph is required'
+      });
+    }
+
+    // Validate required fields
+    if (!email || !firstName || !lastName || !gender || !phoneNumber || !ippis || !bvn) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required: email, firstName, lastName, gender, phoneNumber, ippis, bvn'
       });
     }
 
@@ -34,12 +53,12 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
       return res.status(400).json({ success: false, message: 'Gender must be male or female' });
     }
 
-    if (bvn.length !== 11 || !/^\d+$/.test(bvn)) {
-      return res.status(400).json({ success: false, message: 'BVN must be 11 digits' });
+    if (!/^\d+$/.test(ippis)) {
+      return res.status(400).json({ success: false, message: 'IPPIS must contain only digits' });
     }
 
-    if (nin.length !== 11 || !/^\d+$/.test(nin)) {
-      return res.status(400).json({ success: false, message: 'NIN must be 11 digits' });
+    if (bvn.length !== 11 || !/^\d+$/.test(bvn)) {
+      return res.status(400).json({ success: false, message: 'BVN must be 11 digits' });
     }
 
     // Check for existing application
@@ -53,7 +72,29 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
       });
     }
 
-    // Create application
+    // Get uploaded file URLs from Cloudinary
+    const ninCardImageUrl = (files.ninCardImage[0] as any).path; // Cloudinary URL
+    const passportPhotoUrl = (files.passportPhoto[0] as any).path; // Cloudinary URL
+
+    console.log(`[PayLater] Starting verification for ${email}...`);
+    console.log(`[PayLater] NIN Card URL: ${ninCardImageUrl}`);
+    console.log(`[PayLater] Passport Photo URL: ${passportPhotoUrl}`);
+
+    // Convert images to base64 for Prembly
+    const ninCardBase64 = await convertCloudinaryUrlToBase64(ninCardImageUrl);
+    const passportPhotoBase64 = await convertCloudinaryUrlToBase64(passportPhotoUrl);
+
+    // Verify with Prembly
+    const verificationResults = await premblyService.verifyPaylaterApplicant({
+      ippis,
+      bvn,
+      ninCardImageBase64: ninCardBase64,
+      passportPhotoBase64: passportPhotoBase64,
+      firstName,
+      lastName
+    });
+
+    // Create application with verification results
     const application = await PayLaterApplication.create({
       userId: req.user._id,
       email,
@@ -61,21 +102,71 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
       lastName,
       gender,
       phoneNumber,
+      ippis,
       bvn,
-      nin,
-      status: 'pending'
+      nin: verificationResults.nin.extractedNumber || null, // Auto-populated from OCR
+      ninCardImage: ninCardImageUrl,
+      passportPhoto: passportPhotoUrl,
+      status: 'pending', // Always pending, requires manual admin approval
+      verificationStatus: verificationResults.overallVerified ? 'verified' : 'failed',
+      verificationResults: {
+        ippis: {
+          verified: verificationResults.ippis.verified,
+          confidence: verificationResults.ippis.confidence,
+          verifiedAt: verificationResults.ippis.verified ? new Date() : undefined,
+          error: verificationResults.ippis.error,
+          premblyResponse: verificationResults.ippis.data
+        },
+        bvn: {
+          verified: verificationResults.bvn.verified,
+          confidence: verificationResults.bvn.confidence,
+          verifiedAt: verificationResults.bvn.verified ? new Date() : undefined,
+          error: verificationResults.bvn.error,
+          premblyResponse: verificationResults.bvn.data
+        },
+        nin: {
+          verified: verificationResults.nin.verified,
+          extractedNumber: verificationResults.nin.extractedNumber,
+          verifiedAt: verificationResults.nin.verified ? new Date() : undefined,
+          error: verificationResults.nin.error
+        },
+        faceMatch: verificationResults.faceMatch ? {
+          matched: verificationResults.faceMatch.matched,
+          confidence: verificationResults.faceMatch.confidence,
+          verifiedAt: verificationResults.faceMatch.matched ? new Date() : undefined,
+          error: verificationResults.faceMatch.error
+        } : {
+          matched: false
+        }
+      },
+      verificationScore: verificationResults.verificationScore,
+      verifiedAt: verificationResults.overallVerified ? new Date() : undefined
     });
+
+    console.log(`[PayLater] Application created: ${application._id}, Score: ${verificationResults.verificationScore}/100`);
 
     return res.status(201).json({
       success: true,
-      message: 'Application submitted successfully',
+      message: verificationResults.overallVerified
+        ? 'Application submitted and verified successfully! Awaiting admin approval.'
+        : 'Application submitted. Verification incomplete - admin review required.',
       data: {
         applicationId: application._id,
         status: application.status,
-        submittedAt: application.createdAt
+        verificationStatus: application.verificationStatus,
+        verificationScore: application.verificationScore,
+        submittedAt: application.createdAt,
+        details: {
+          ippisVerified: verificationResults.ippis.verified,
+          bvnVerified: verificationResults.bvn.verified,
+          ninExtracted: verificationResults.nin.extracted,
+          ninVerified: verificationResults.nin.verified,
+          faceMatched: verificationResults.faceMatch?.matched || false
+        }
       }
     });
   } catch (error) {
+    console.error('[PayLater] Application error:', error);
     return res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to submit application'
