@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   submitApplication,
   getStatus,
@@ -22,10 +23,31 @@ router.use(authenticateToken);
 
 // Application
 // POST /api/paylater/apply - Submit PayLater application with document uploads
-router.post('/apply', uploadPaylaterImages.fields([
-  { name: 'ninCardImage', maxCount: 1 },
-  { name: 'passportPhoto', maxCount: 1 }
-]), submitApplication);
+router.post('/apply', 
+  uploadPaylaterImages.fields([
+    { name: 'ninCardImage', maxCount: 1 },
+    { name: 'passportPhoto', maxCount: 1 }
+  ]), 
+  // Multer error handler
+  (err: any, req: any, res: any, next: any) => {
+    if (err instanceof multer.MulterError) {
+      console.error('[Multer Error]:', err);
+      return res.status(400).json({
+        success: false,
+        message: `File upload error: ${err.message}`,
+        error: err.code
+      });
+    } else if (err) {
+      console.error('[Upload Error]:', err);
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Unknown upload error'
+      });
+    }
+    next();
+  },
+  submitApplication
+);
 
 // GET /api/paylater/status - Get user's PayLater status
 router.get('/status', getStatus);
