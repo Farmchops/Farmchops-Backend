@@ -56,22 +56,21 @@ export const uploadVendorDoc = multer({
   }
 });
 
-// PayLater Application Documents (NIN card, passport photo) with Sharp compression
-// Higher quality (90%) for ID verification documents
-const paylaterStorage = new CompressedCloudinaryStorage({
-  folder: 'farmchops/paylater-applications',
-  allowed_formats: ['jpg', 'jpeg', 'png'],
-  compression: {
-    maxWidth: 2000,
-    maxHeight: 2000,
-    quality: 90 // Higher quality for ID verification
-  }
-}) as any;
+// PayLater Application Documents (NIN card, passport photo)
+// Using standard CloudinaryStorage for compatibility (ID verification requires high quality anyway)
+const paylaterStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'farmchops/paylater-applications',
+    allowed_formats: ['jpg', 'jpeg', 'png'],
+    transformation: [{ width: 2000, height: 2000, crop: 'limit', quality: 90 }]
+  } as any
+});
 
 export const uploadPaylaterImages = multer({
   storage: paylaterStorage,
   limits: {
-    fileSize: 25 * 1024 * 1024 // Increased to 25MB to match other uploads
+    fileSize: 25 * 1024 * 1024 // 25MB per file
   },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
