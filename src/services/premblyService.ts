@@ -12,6 +12,7 @@ interface BVNVerificationResult {
   confidence?: number;
   data?: any;
   error?: string;
+  premblyResponse?: any;
 }
 
 interface NINExtractionResult {
@@ -119,16 +120,25 @@ class PremblyService {
         }
       );
 
+      // Check multiple possible success indicators
+      const isVerified = response.data.verification_status === 'verified' ||
+                        response.data.verification?.status === 'VERIFIED' ||
+                        response.data.verification?.status === 'verified' ||
+                        response.data.account_verified === true ||
+                        (response.data.status === true && response.data.response_code === '00');
+
       return {
-        verified: response.data.verification?.status === 'verified',
-        data: response.data,
-        confidence: response.data.verification?.confidence || 0
+        verified: isVerified,
+        confidence: response.data.verification?.confidence || (isVerified ? 95 : 0),
+        premblyResponse: response.data
       };
     } catch (error: any) {
       console.error('Prembly BVN verification error:', error.response?.data || error.message);
       return {
         verified: false,
-        error: error.response?.data?.message || 'BVN verification failed'
+        confidence: 0,
+        error: error.response?.data?.message || 'BVN verification failed',
+        premblyResponse: error.response?.data
       };
     }
   }
