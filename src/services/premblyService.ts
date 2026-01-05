@@ -229,7 +229,7 @@ class PremblyService {
    * Verify NIN with face match in a single call
    * This replaces separate NIN OCR and face matching
    */
-  async verifyNINWithFace(nin: string, firstName: string, lastName: string, faceImageBase64: string): Promise<{
+  async verifyNINWithFace(nin: string, dateOfBirth: string, faceImageBase64: string): Promise<{
     ninVerified: boolean;
     faceMatched: boolean;
     confidence?: number;
@@ -240,9 +240,8 @@ class PremblyService {
       const response = await axios.post(
         `${this.baseUrl}/verification/nin_w_face`,  // Combined NIN + Face endpoint
         {
-          number: nin,
-          first_name: firstName,
-          last_name: lastName,
+          number_nin: nin,  // Correct parameter name from Prembly docs
+          date_of_birth: dateOfBirth,
           image: faceImageBase64
         },
         {
@@ -286,6 +285,7 @@ class PremblyService {
     ippis: string;  // Collected but not verified (Prembly doesn't support IPPIS)
     bvn: string;
     nin: string;  // User provides NIN number
+    dateOfBirth: string;  // Required for NIN verification (YYYY-MM-DD format)
     passportPhotoBase64: string;
     firstName: string;
     lastName: string;
@@ -304,12 +304,11 @@ class PremblyService {
     results.bvn = await this.verifyBVN(data.bvn, data.firstName, data.lastName);
 
     // Step 2: Verify NIN with Face Match (combined: 30pts NIN + 20pts face)
-    if (data.nin) {
+    if (data.nin && data.dateOfBirth) {
       console.log('[Prembly] Verifying NIN with face match...');
       const ninWithFace = await this.verifyNINWithFace(
         data.nin,
-        data.firstName,
-        data.lastName,
+        data.dateOfBirth,
         data.passportPhotoBase64
       );
 

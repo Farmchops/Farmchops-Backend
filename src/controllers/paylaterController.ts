@@ -22,7 +22,7 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { email, firstName, lastName, gender, phoneNumber, ippis, bvn, nin } = req.body;
+    const { email, firstName, lastName, gender, phoneNumber, ippis, bvn, nin, dateOfBirth } = req.body;
 
     // Validate uploaded files
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -41,11 +41,11 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
       });
     }
 
-    // Validate required fields (including NIN number)
-    if (!email || !firstName || !lastName || !gender || !phoneNumber || !ippis || !bvn || !nin) {
+    // Validate required fields (including NIN number and date of birth)
+    if (!email || !firstName || !lastName || !gender || !phoneNumber || !ippis || !bvn || !nin || !dateOfBirth) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required: email, firstName, lastName, gender, phoneNumber, ippis, bvn, nin'
+        message: 'All fields are required: email, firstName, lastName, gender, phoneNumber, ippis, bvn, nin, dateOfBirth'
       });
     }
 
@@ -63,6 +63,11 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
 
     if (nin.length !== 11 || !/^\d+$/.test(nin)) {
       return res.status(400).json({ success: false, message: 'NIN must be 11 digits' });
+    }
+
+    // Validate date of birth format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+      return res.status(400).json({ success: false, message: 'Date of birth must be in YYYY-MM-DD format' });
     }
 
     // Check for existing application
@@ -92,6 +97,7 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
       ippis,
       bvn,
       nin,  // User-provided NIN number
+      dateOfBirth,  // Required for NIN verification
       passportPhotoBase64: passportPhotoBase64,
       firstName,
       lastName
