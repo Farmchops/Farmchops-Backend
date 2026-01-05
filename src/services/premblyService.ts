@@ -30,6 +30,7 @@ interface NINVerificationResult {
   confidence?: number;
   data?: any;
   error?: string;
+  premblyResponse?: any;
 }
 
 interface FaceMatchResult {
@@ -182,11 +183,12 @@ class PremblyService {
 
   /**
    * Verify NIN (National Identity Number)
+   * Note: IPPIS verification is not available in Prembly API
    */
   async verifyNIN(nin: string, firstName: string, lastName: string): Promise<NINVerificationResult> {
     try {
       const response = await axios.post(
-        `${this.baseUrl}/verification/nin`,
+        `${this.baseUrl}/verification/vnin-basic`,  // Correct endpoint
         {
           number: nin,
           first_name: firstName,
@@ -201,30 +203,47 @@ class PremblyService {
         }
       );
 
+      // Check multiple possible success indicators
+      const isVerified = response.data.verification_status === 'verified' ||
+                        response.data.verification?.status === 'VERIFIED' ||
+                        response.data.verification?.status === 'verified' ||
+                        (response.data.status === true && response.data.response_code === '00');
+
       return {
-        verified: response.data.verification?.status === 'verified',
-        data: response.data,
-        confidence: response.data.verification?.confidence || 0
+        verified: isVerified,
+        confidence: response.data.verification?.confidence || (isVerified ? 95 : 0),
+        premblyResponse: response.data
       };
     } catch (error: any) {
       console.error('Prembly NIN verification error:', error.response?.data || error.message);
       return {
         verified: false,
-        error: error.response?.data?.message || 'NIN verification failed'
+        confidence: 0,
+        error: error.response?.data?.message || 'NIN verification failed',
+        premblyResponse: error.response?.data
       };
     }
   }
 
   /**
-   * Verify face match between passport photograph and NIN card photo
+   * Verify NIN with face match in a single call
+   * This replaces separate NIN OCR and face matching
    */
-  async verifyFaceMatch(passportPhotoBase64: string, ninCardBase64: string): Promise<FaceMatchResult> {
+  async verifyNINWithFace(nin: string, firstName: string, lastName: string, faceImageBase64: string): Promise<{
+    ninVerified: boolean;
+    faceMatched: boolean;
+    confidence?: number;
+    data?: any;
+    error?: string;
+  }> {
     try {
       const response = await axios.post(
-        `${this.baseUrl}/verification/face-match`,
+        `${this.baseUrl}/verification/nin_w_face`,  // Combined NIN + Face endpoint
         {
-          selfie: passportPhotoBase64,
-          id_photo: ninCardBase64
+          number: nin,
+          first_name: firstName,
+          last_name: lastName,
+          image: faceImageBase64
         },
         {
           headers: {
@@ -235,32 +254,44 @@ class PremblyService {
         }
       );
 
+      const isVerified = response.data.verification_status === 'verified' ||
+                        response.data.verification?.status === 'VERIFIED' ||
+                        (response.data.status === true && response.data.response_code === '00');
+      
+      const isFaceMatched = response.data.face_matched === true ||
+                           response.data.face_match === true;
+
       return {
-        matched: response.data.match === true,
-        confidence: response.data.confidence || 0
+        ninVerified: isVerified,
+        faceMatched: isFaceMatched,
+        confidence: response.data.confidence || response.data.verification?.confidence || 90,
+        data: response.data
       };
     } catch (error: any) {
-      console.error('Prembly face match error:', error.response?.data || error.message);
+      console.error('Prembly NIN with face error:', error.response?.data || error.message);
       return {
-        matched: false,
-        error: error.response?.data?.message || 'Face matching failed'
+        ninVerified: false,
+        faceMatched: false,
+        error: error.response?.data?.message || 'NIN with face verification failed'
       };
     }
   }
 
   /**
-   * Comprehensive verification for PayLater application (Government Workers Only)
+   * Comprehensive verification for PayLater application
+   * Note: IPPIS is not available in Prembly - we skip it
+   * We use NIN provided by user (not extracted from image)
    */
   async verifyPaylaterApplicant(data: {
-    ippis: string;
+    ippis: string;  // Collected but not verified (Prembly doesn't support IPPIS)
     bvn: string;
-    ninCardImageBase64: string;
+    nin: string;  // User provides NIN number
     passportPhotoBase64: string;
     firstName: string;
     lastName: string;
   }): Promise<ComprehensiveVerificationResult> {
     const results: ComprehensiveVerificationResult = {
-      ippis: { verified: false },
+      ippis: { verified: false, error: 'IPPIS verification not available in Prembly API' },
       bvn: { verified: false },
       nin: { extracted: false, verified: false },
       faceMatch: undefined,
@@ -268,53 +299,46 @@ class PremblyService {
       verificationScore: 0
     };
 
-    // Step 1: Verify IPPIS (Government Worker Verification)
-    console.log('[Prembly] Verifying IPPIS...');
-    results.ippis = await this.verifyIPPIS(data.ippis, data.firstName, data.lastName);
-
-    // Step 2: Verify BVN
+    // Step 1: Verify BVN (50 points)
     console.log('[Prembly] Verifying BVN...');
     results.bvn = await this.verifyBVN(data.bvn, data.firstName, data.lastName);
 
-    // Step 3: Extract NIN from card image
-    console.log('[Prembly] Extracting NIN from image...');
-    const ninExtraction = await this.extractNINFromImage(data.ninCardImageBase64);
-
-    if (ninExtraction.extracted && ninExtraction.ninNumber) {
-      results.nin.extracted = true;
-      results.nin.extractedNumber = ninExtraction.ninNumber;
-
-      // Step 4: Verify the extracted NIN
-      console.log('[Prembly] Verifying extracted NIN...');
-      const ninVerification = await this.verifyNIN(
-        ninExtraction.ninNumber,
+    // Step 2: Verify NIN with Face Match (combined: 30pts NIN + 20pts face)
+    if (data.nin) {
+      console.log('[Prembly] Verifying NIN with face match...');
+      const ninWithFace = await this.verifyNINWithFace(
+        data.nin,
         data.firstName,
-        data.lastName
+        data.lastName,
+        data.passportPhotoBase64
       );
-      results.nin.verified = ninVerification.verified;
+
+      results.nin.verified = ninWithFace.ninVerified;
+      results.nin.extractedNumber = data.nin;  // Use provided NIN
+      results.faceMatch = {
+        matched: ninWithFace.faceMatched,
+        confidence: ninWithFace.confidence
+      };
+
+      if (!ninWithFace.ninVerified || !ninWithFace.faceMatched) {
+        results.nin.error = ninWithFace.error || 'NIN or face verification failed';
+      }
     } else {
-      results.nin.error = ninExtraction.error;
+      results.nin.error = 'NIN number not provided';
     }
 
-    // Step 5: Face matching (required)
-    console.log('[Prembly] Performing face match...');
-    results.faceMatch = await this.verifyFaceMatch(
-      data.passportPhotoBase64,
-      data.ninCardImageBase64
-    );
-
-    // Calculate verification score
+    // Calculate verification score (out of 100)
     let score = 0;
-    if (results.ippis.verified) score += 30; // IPPIS verification (government worker)
-    if (results.bvn.verified) score += 30; // BVN verification
-    if (results.nin.extracted) score += 10; // NIN extraction
-    if (results.nin.verified) score += 20; // NIN verification
-    if (results.faceMatch?.matched) score += 10; // Face match
+    if (results.bvn.verified) score += 50;  // BVN (increased from 30)
+    if (results.nin.verified) score += 30;  // NIN verification
+    if (results.faceMatch?.matched) score += 20;  // Face match
 
     results.verificationScore = score;
-    results.overallVerified = score >= 80; // Require 80% to pass
+    results.overallVerified = score >= 70;  // Lowered threshold since no IPPIS
 
     console.log(`[Prembly] Verification complete. Score: ${score}/100`);
+    console.log(`[Prembly] BVN: ${results.bvn.verified ? '✓' : '✗'}, NIN: ${results.nin.verified ? '✓' : '✗'}, Face: ${results.faceMatch?.matched ? '✓' : '✗'}`);
+    
     return results;
   }
 }

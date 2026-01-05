@@ -22,7 +22,7 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { email, firstName, lastName, gender, phoneNumber, ippis, bvn } = req.body;
+    const { email, firstName, lastName, gender, phoneNumber, ippis, bvn, nin } = req.body;
 
     // Validate uploaded files
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -30,7 +30,7 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
     if (!files || !files.ninCardImage || !files.ninCardImage[0]) {
       return res.status(400).json({
         success: false,
-        message: 'NIN card image (front) is required'
+        message: 'NIN card image is required'
       });
     }
 
@@ -41,11 +41,11 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
       });
     }
 
-    // Validate required fields
-    if (!email || !firstName || !lastName || !gender || !phoneNumber || !ippis || !bvn) {
+    // Validate required fields (including NIN number)
+    if (!email || !firstName || !lastName || !gender || !phoneNumber || !ippis || !bvn || !nin) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required: email, firstName, lastName, gender, phoneNumber, ippis, bvn'
+        message: 'All fields are required: email, firstName, lastName, gender, phoneNumber, ippis, bvn, nin'
       });
     }
 
@@ -59,6 +59,10 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
 
     if (bvn.length !== 11 || !/^\d+$/.test(bvn)) {
       return res.status(400).json({ success: false, message: 'BVN must be 11 digits' });
+    }
+
+    if (nin.length !== 11 || !/^\d+$/.test(nin)) {
+      return res.status(400).json({ success: false, message: 'NIN must be 11 digits' });
     }
 
     // Check for existing application
@@ -80,15 +84,14 @@ export const submitApplication = async (req: AuthRequest, res: Response): Promis
     console.log(`[PayLater] NIN Card URL: ${ninCardImageUrl}`);
     console.log(`[PayLater] Passport Photo URL: ${passportPhotoUrl}`);
 
-    // Convert images to base64 for Prembly
-    const ninCardBase64 = await convertCloudinaryUrlToBase64(ninCardImageUrl);
+    // Convert passport photo to base64 for Prembly (used for face matching)
     const passportPhotoBase64 = await convertCloudinaryUrlToBase64(passportPhotoUrl);
 
-    // Verify with Prembly
+    // Verify with Prembly (uses NIN number + passport photo for face match)
     const verificationResults = await premblyService.verifyPaylaterApplicant({
       ippis,
       bvn,
-      ninCardImageBase64: ninCardBase64,
+      nin,  // User-provided NIN number
       passportPhotoBase64: passportPhotoBase64,
       firstName,
       lastName
