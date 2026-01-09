@@ -104,7 +104,7 @@ const ProductSchema: Schema = new Schema({
       },
       minQuantity: {
         type: Number,
-        required: [true, 'Minimum retail quantity is required'],
+        default: 1,
         min: [1, 'Minimum quantity must be at least 1']
       }
     },
@@ -128,7 +128,7 @@ const ProductSchema: Schema = new Schema({
       },
       minQuantity: {
         type: Number,
-        required: true,
+        default: 1,
         min: [1, 'Minimum quantity must be at least 1']
       }
     }],
@@ -298,19 +298,8 @@ ProductSchema.pre<IProduct>('validate', function(next) {
     this.slug = this.name.toLowerCase().replace(/\s+/g, '-');
   }
 
-  // Validate bulk tiers if they exist
-  if (this.pricing.bulkTiers && this.pricing.bulkTiers.length > 0) {
-    const retailPricePerUnit = this.pricing.retail.price / this.pricing.retail.minQuantity;
-
-    for (const tier of this.pricing.bulkTiers) {
-      const tierPricePerUnit = tier.price / tier.minQuantity;
-
-      if (tierPricePerUnit >= retailPricePerUnit) {
-        next(new Error(`Bulk tier "${tier.name}" price per unit (₦${tierPricePerUnit.toFixed(2)}) must be less than retail price per unit (₦${retailPricePerUnit.toFixed(2)})`));
-        return;
-      }
-    }
-  }
+  // No validation on bulk tier pricing - allow flexible pricing for different package sizes
+  // (e.g., 1 piece might be cheaper than 1kg, which is a larger quantity)
 
   // Validate group buying configuration
   if (this.groupBuyingEnabled && this.groupConfig) {
