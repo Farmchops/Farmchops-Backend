@@ -300,9 +300,13 @@ ProductSchema.pre<IProduct>('validate', function(next) {
 
   // Validate bulk tiers if they exist
   if (this.pricing.bulkTiers && this.pricing.bulkTiers.length > 0) {
+    const retailPricePerUnit = this.pricing.retail.price / this.pricing.retail.minQuantity;
+
     for (const tier of this.pricing.bulkTiers) {
-      if (tier.price >= this.pricing.retail.price) {
-        next(new Error(`Bulk tier "${tier.name}" price must be less than retail price`));
+      const tierPricePerUnit = tier.price / tier.minQuantity;
+
+      if (tierPricePerUnit >= retailPricePerUnit) {
+        next(new Error(`Bulk tier "${tier.name}" price per unit (₦${tierPricePerUnit.toFixed(2)}) must be less than retail price per unit (₦${retailPricePerUnit.toFixed(2)})`));
         return;
       }
     }
