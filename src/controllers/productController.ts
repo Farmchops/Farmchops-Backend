@@ -49,7 +49,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       sort = 'createdAt',
       order = 'desc',
       page = 1,
-      limit = 20
+      limit = 15
     } = req.query;
 
     // Build filter object
