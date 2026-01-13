@@ -114,11 +114,12 @@ let sessionStore: any = undefined; // Will use default MemoryStore initially
 app.use(session({
   secret: process.env.SESSION_SECRET || '1233edhkndlfjkneinr93u943',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true, // MUST be true for guest carts - creates session even for anonymous users
   store: sessionStore, // Initially undefined = uses MemoryStore
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain in production, 'lax' for dev
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   }
 }));
