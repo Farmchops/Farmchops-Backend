@@ -83,9 +83,14 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       filter.tags = { $in: tagArray };
     }
 
-    // Search filter
+    // Search filter - partial/fuzzy matching
     if (search) {
-      filter.$text = { $search: search as string };
+      const searchRegex = new RegExp(search as string, 'i'); // Case-insensitive
+      filter.$or = [
+        { name: searchRegex },
+        { description: searchRegex },
+        { tags: searchRegex }
+      ];
     }
 
     // Pagination
@@ -227,8 +232,13 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    const searchRegex = new RegExp(q, 'i'); // Case-insensitive partial matching
     const filter: any = {
-      $text: { $search: q },
+      $or: [
+        { name: searchRegex },
+        { description: searchRegex },
+        { tags: searchRegex }
+      ],
       ...(req.user?.role !== 'admin' && { status: 'active' })
     };
 
@@ -243,7 +253,6 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
     const products = await Product.find(filter)
       .populate('category', 'name slug')
       .select('name slug pricing.retail.price images category tags')
-      .sort({ score: { $meta: 'textScore' } })
       .limit(Math.min(50, Number(limit)));
 
     res.json({
