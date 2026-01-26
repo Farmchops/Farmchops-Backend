@@ -103,12 +103,6 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// Explicit OPTIONS handler for all routes - CRITICAL for CORS preflight
-app.options('*', (req, res) => {
-  console.log('[CORS] Preflight OPTIONS request:', req.path, 'from origin:', req.headers.origin);
-  res.status(204).send();
-});
-
 // Log incoming requests
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);

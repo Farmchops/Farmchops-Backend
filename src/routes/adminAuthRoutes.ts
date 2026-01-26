@@ -12,9 +12,6 @@ import { authenticateToken, requireSuperAdmin } from '../middleware/auth';
 
 const router = Router();
 
-// Handle OPTIONS preflight for all routes
-router.options('*', (_req, res) => res.status(204).send());
-
 // Super admin invites new admin (protected - super admin only)
 router.post(
   '/send-invite',
