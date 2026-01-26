@@ -16,6 +16,9 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
+// Handle OPTIONS preflight for all routes
+router.options('*', (_req, res) => res.status(204).send());
+
 // POST /api/auth/validate-referral-code - Validate referral code (public)
 router.post('/validate-referral-code', validateReferralCode);
 
