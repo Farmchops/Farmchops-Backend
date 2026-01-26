@@ -127,31 +127,36 @@ app.use(session({
 // Serve static files (for email logo)
 app.use('/public', express.static('public'));
 
+// Public/Customer routes
 app.use('/api/categories', category)
 app.use('/api/auth', auth)
 app.use('/api/products', product)
 app.use('/api/cart', cart)
-app.use('/api/admin/auth', adminAuthRoutes);
-app.use('/api/admin/management', adminManagementRoutes);
 app.use('/api/orders', ordersRoutes);
-app.use('/api/admin/deals', adminDealRoutes);
-app.use('/api/admin', adminOrderRoutes);
-app.use('/api/admin', adminGroupOrderRoutes);
-app.use('/api/rider', riderOrderRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/vendors', vendorRoutes);
-app.use('/api/admin/vendors', adminVendorRoutes);
 app.use('/api/group-orders', groupOrderRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/payment-links', paymentLinkRoutes);
 app.use('/api/paylater', paylaterRoutes);
-app.use('/api/admin/paylater', adminPaylaterRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/contact', contactRoutes);
-app.use('/api/admin', marketerRoutes);
 app.use('/api/coupons', discountRoutes);
-app.use('/api/orders', discountRoutes);
+
+// Admin routes (specific paths BEFORE general /api/admin)
+app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin/management', adminManagementRoutes);
+app.use('/api/admin/deals', adminDealRoutes);
+app.use('/api/admin/vendors', adminVendorRoutes);
+app.use('/api/admin/paylater', adminPaylaterRoutes);
 app.use('/api/admin/users', userRoutes);
+// General admin routes (these should come LAST among admin routes)
+app.use('/api/admin', adminOrderRoutes);
+app.use('/api/admin', adminGroupOrderRoutes);
+app.use('/api/admin', marketerRoutes);
+
+// Rider routes
+app.use('/api/rider', riderOrderRoutes);
 // app.use('/api/places', placesRoutes);
 
 
