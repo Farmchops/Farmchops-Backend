@@ -66,35 +66,60 @@ const allowedOrigins = [
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, Postman, curl)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('[CORS] Request with no origin - allowed');
+      return callback(null, true);
+    }
 
     // In development, allow all origins
     if (process.env.NODE_ENV !== 'production') {
+      console.log('[CORS] Development mode - allowing origin:', origin);
       return callback(null, true);
     }
 
     // In production, check whitelist
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('[CORS] Production - allowing whitelisted origin:', origin);
       callback(null, true);
     } else {
-      console.warn('[CORS] Blocked request from origin:', origin);
+      console.error('[CORS] ❌ BLOCKED - Origin not in whitelist:', origin);
+      console.error('[CORS] Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'Accept',
+    'Origin',
+    'X-Requested-With',
+    'Accept-Language',
+    'Accept-Encoding'
+  ],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
   preflightContinue: false,
   optionsSuccessStatus: 204
 }));
 
+// Explicit OPTIONS handler for all routes - CRITICAL for CORS preflight
+app.options('*', (req, res) => {
+  console.log('[CORS] Preflight OPTIONS request:', req.path, 'from origin:', req.headers.origin);
+  res.status(204).send();
+});
+
 // Log incoming requests
-app.use((req, _res, next) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.debug('[DEV] Incoming request:', req.method, req.originalUrl, 'Origin:', req.headers.origin);
-  } else {
-    console.log('[CORS] Request from origin:', req.headers.origin);
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+  
+  // Ensure CORS headers are set on every response
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.indexOf(origin) !== -1) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
+  
   next();
 });
 
