@@ -30,6 +30,8 @@ import { PERMISSIONS } from '../utils/permissions';
 
 const router = Router();
 
+// Handle OPTIONS preflight for all routes (must come before auth middleware)
+router.options('*', (_req, res) => res.status(204).send());
 
 router.use(authenticateToken);
 router.use(requireAdmin);

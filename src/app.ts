@@ -135,8 +135,8 @@ app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/management', adminManagementRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/admin/deals', adminDealRoutes);
-app.use('/api/admin', adminGroupOrderRoutes);  // Must be before adminOrderRoutes to handle OPTIONS preflight
 app.use('/api/admin', adminOrderRoutes);
+app.use('/api/admin', adminGroupOrderRoutes);
 app.use('/api/rider', riderOrderRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/vendors', vendorRoutes);
