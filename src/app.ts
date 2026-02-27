@@ -153,7 +153,7 @@ app.use('/api/products', product)
 app.use('/api/cart', cart)
 app.use('/api/orders', ordersRoutes);
 app.use('/api/deals', dealRoutes);
-app.use('/api/vendors', vendorRoutes);
+app.use('/api/farmers', vendorRoutes);
 app.use('/api/group-orders', groupOrderRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/payment-links', paymentLinkRoutes);
