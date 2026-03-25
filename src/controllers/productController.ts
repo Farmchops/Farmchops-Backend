@@ -55,9 +55,9 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     // Build filter object
     const filter: any = {};
 
-    // Only show active products for non-admin users
+    // Show active and out_of_stock products to public; admins can filter by any status
     if (req.user?.role !== 'admin') {
-      filter.status = 'active';
+      filter.status = { $in: ['active', 'out_of_stock'] };
     } else if (status) {
       filter.status = status;
     }

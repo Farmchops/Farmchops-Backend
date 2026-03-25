@@ -325,7 +325,9 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Start the server
-startServer();
+// Start the server (skipped when running tests)
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
 
 export default app;
