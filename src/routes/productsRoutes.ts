@@ -9,7 +9,9 @@ import {
   deleteProduct,
   getProductStats,
   getInventoryTracking,
-  updateProductStock
+  updateProductStock,
+  addProductImages,
+  removeProductImage
 } from '../controllers/productController';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 import { uploadProductImages } from '../middleware/uploadMiddleware';
@@ -46,8 +48,13 @@ router.get('/:slug', getProductBySlug);
 // POST /api/products - Create product (admin only)
 router.post('/admin/products', authenticateToken, requireAdmin, uploadProductImages.array('images', 5), createProduct);
 
-router.put('/admin/products/:id',authenticateToken, requireAdmin, uploadProductImages.array('images', 5), updateProduct);
+router.put('/admin/products/:id', authenticateToken, requireAdmin, uploadProductImages.array('images', 5), updateProduct);
 
+// POST /api/products/admin/products/:id/images - Add images to a product (admin only)
+router.post('/admin/products/:id/images', authenticateToken, requireAdmin, uploadProductImages.array('images', 5), addProductImages);
+
+// DELETE /api/products/admin/products/:id/images - Remove a specific image (admin only)
+router.delete('/admin/products/:id/images', authenticateToken, requireAdmin, removeProductImage);
 
 // DELETE /api/products/:id - Delete product (admin only)
 router.delete('/:id', authenticateToken, requireAdmin, deleteProduct);

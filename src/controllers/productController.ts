@@ -4,7 +4,7 @@ import { Product, IProduct } from '../models/Product';
 import { Deal } from '../models/Deal';
 import { Category } from '../models/Category';
 import { validationResult } from 'express-validator';
-import { deleteMultipleImages } from '../utils/imageHelper';
+import { deleteImage, deleteMultipleImages } from '../utils/imageHelper';
 
 
 
@@ -793,5 +793,86 @@ export const updateProductStock = async (req: Request, res: Response): Promise<v
       success: false,
       message: 'Failed to update stock'
     });
+  }
+};
+
+// POST /api/products/admin/products/:id/images - Add images to a product (admin only)
+export const addProductImages = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const uploadedFiles = req.files as Express.Multer.File[];
+
+    if (!uploadedFiles || uploadedFiles.length === 0) {
+      res.status(400).json({ success: false, message: 'No images provided' });
+      return;
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      res.status(404).json({ success: false, message: 'Product not found' });
+      return;
+    }
+
+    const newUrls = uploadedFiles.map(f => f.path);
+    const combined = [...product.images, ...newUrls];
+
+    if (combined.length > 5) {
+      // Delete the just-uploaded files since we can't keep them
+      await deleteMultipleImages(newUrls);
+      res.status(400).json({
+        success: false,
+        message: `Cannot add ${newUrls.length} image(s): product already has ${product.images.length} image(s), maximum is 5`
+      });
+      return;
+    }
+
+    product.images = combined;
+    await product.save();
+
+    res.json({
+      success: true,
+      message: 'Images added successfully',
+      data: { images: product.images }
+    });
+  } catch (error) {
+    console.error('Add product images error:', error);
+    res.status(500).json({ success: false, message: 'Failed to add images' });
+  }
+};
+
+// DELETE /api/products/admin/products/:id/images - Remove a specific image (admin only)
+export const removeProductImage = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { imageUrl } = req.body;
+
+    if (!imageUrl || typeof imageUrl !== 'string') {
+      res.status(400).json({ success: false, message: 'imageUrl is required' });
+      return;
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      res.status(404).json({ success: false, message: 'Product not found' });
+      return;
+    }
+
+    if (!product.images.includes(imageUrl)) {
+      res.status(404).json({ success: false, message: 'Image not found on this product' });
+      return;
+    }
+
+    await deleteImage(imageUrl);
+    product.images = product.images.filter(url => url !== imageUrl);
+    await product.save();
+
+    res.json({
+      success: true,
+      message: 'Image removed successfully',
+      data: { images: product.images }
+    });
+  } catch (error) {
+    console.error('Remove product image error:', error);
+    res.status(500).json({ success: false, message: 'Failed to remove image' });
   }
 };
