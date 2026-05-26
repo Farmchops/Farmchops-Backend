@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
 import { getCart, clearCart } from '../utils/cartHelpers';
-import { getInternationalShippingRate } from '../services/shippingService';
 import { CheckoutRequest, CheckoutSummaryResponse, DeliveryInfo } from '../types/order.types';
 import { Order, IOrder } from '../models/Order';
 import { Product } from '../models/Product';
@@ -80,7 +79,7 @@ function calculateZoneFee(subtotal: number, zone: ZoneConfig): number {
 
 export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, CheckoutRequest>, res: Response<CheckoutSummaryResponse>): Promise<Response<CheckoutSummaryResponse>> => {
   try {
-    const { name, phone, address, country = 'NG', postalCode, origin, notes, couponCode } = req.body;
+    const { name, phone, address, postalCode, origin, notes, couponCode } = req.body;
     if (!name || !phone || !address) {
       return res.status(400).json({ success: false, message: 'name, phone and address are required' });
     }
@@ -90,24 +89,12 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
       return res.status(400).json({ success: false, message: 'Cart is empty' });
     }
 
-    const normalizedCountry = country.toUpperCase();
-    const isInternational = normalizedCountry !== 'NG';
     const subtotalBeforeDiscount = cart.totalAmount;
 
     let deliveryFee: number;
     let deliveryDetails: Omit<DeliveryInfo, 'fee'>;
 
-    if (isInternational) {
-      const intlRate = getInternationalShippingRate(normalizedCountry);
-      deliveryFee = intlRate.rate;
-      deliveryDetails = {
-        address,
-        country: normalizedCountry,
-        isInternational: true,
-        carrier: intlRate.carrier,
-        estimatedDays: intlRate.estimatedDays,
-      };
-    } else if (isPickupAddress(address)) {
+    if (isPickupAddress(address)) {
       deliveryFee = 0;
       deliveryDetails = {
         address,
@@ -252,10 +239,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Calculate delivery fee if not provided
     let calculatedDeliveryFee = deliveryFee;
     if (!calculatedDeliveryFee || calculatedDeliveryFee === 0) {
-      const orderCountry = deliveryInfo.country?.toUpperCase();
-      if (orderCountry && orderCountry !== 'NG') {
-        calculatedDeliveryFee = getInternationalShippingRate(orderCountry).rate;
-      } else if (isPickupAddress(deliveryInfo.address)) {
+      if (isPickupAddress(deliveryInfo.address)) {
         calculatedDeliveryFee = 0;
       } else {
         const detectedZone = detectDeliveryZone(deliveryInfo.address);
