@@ -118,11 +118,12 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
     } else {
       const detectedZone = (area ? detectDeliveryZone(area) : null) || detectDeliveryZone(address);
       if (!detectedZone) {
-        if (!area) {
+        const isAbuja = /abuja|fct|federal capital/i.test(address);
+        if (!area || isAbuja) {
           return res.status(200).json({
             success: false,
             needsAreaSelection: true,
-            message: 'Please select your delivery area from the dropdown.'
+            message: 'Select your delivery area'
           } as any);
         }
         return res.status(400).json({
