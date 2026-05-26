@@ -49,9 +49,21 @@ const DELIVERY_ZONES: ZoneConfig[] = [
   },
   {
     zone: 4,
-    name: 'Far',
-    fee: -1,
-    areas: ['bwari', 'kwali', 'kuje']
+    name: 'Bwari',
+    fee: 8500,
+    areas: ['bwari']
+  },
+  {
+    zone: 5,
+    name: 'Kuje',
+    fee: 10000,
+    areas: ['kuje']
+  },
+  {
+    zone: 6,
+    name: 'Kwali',
+    fee: 11500,
+    areas: ['kwali']
   }
 ];
 
@@ -109,12 +121,6 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
         return res.status(400).json({
           success: false,
           message: 'Delivery is not available for your area. We currently deliver to selected areas in Abuja only.'
-        });
-      }
-      if (detectedZone.zone === 4) {
-        return res.status(400).json({
-          success: false,
-          message: 'Delivery to Bwari, Kwali, and Kuje is not yet available. Stay tuned!'
         });
       }
       deliveryFee = calculateZoneFee(subtotalBeforeDiscount, detectedZone);
@@ -247,7 +253,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         calculatedDeliveryFee = 0;
       } else {
         const detectedZone = detectDeliveryZone(deliveryInfo.address);
-        if (!detectedZone || detectedZone.zone === 4) {
+        if (!detectedZone) {
           await session.abortTransaction();
           session.endSession();
           return res.status(400).json({
