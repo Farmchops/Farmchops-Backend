@@ -56,7 +56,7 @@ const DELIVERY_ZONES: ZoneConfig[] = [
   }
 ];
 
-const PICKUP_KEYWORDS = ['jabi', 'farmchops pickup', 'pickup', 'self pickup', 'self-pickup'];
+const PICKUP_KEYWORDS = ['jabi', 'i.t. igbani', 'it igbani', 'igbani', 'farmchops pickup', 'pickup', 'self pickup', 'self-pickup'];
 
 function isPickupAddress(address: string): boolean {
   const lower = address.toLowerCase();
