@@ -19,8 +19,8 @@ import { calculateOrderDiscounts } from '../services/discountService';
 import Coupon from '../models/Coupon';
 import Marketer from '../models/Marketer';
 
-// Abuja delivery zones (fees in kobo)
-const FREE_THRESHOLD = 1000000000; // free delivery if subtotal >= N100,000
+// Abuja delivery zones (fees in Naira)
+const FREE_THRESHOLD = 100000; // free delivery if subtotal >= ₦100,000
 
 interface ZoneConfig {
   zone: number;
@@ -33,19 +33,19 @@ const DELIVERY_ZONES: ZoneConfig[] = [
   {
     zone: 1,
     name: 'Nearest',
-    fee: 250000, // N2,500
+    fee: 2500,
     areas: ['utako', 'wuse 2', 'wuse2', 'mabushi', 'kado', 'life camp', 'lifecamp', 'gwarinpa', 'katampe']
   },
   {
     zone: 2,
     name: 'Mid',
-    fee: 350000, // N3,500
+    fee: 3500,
     areas: ['maitama', 'garki', 'cbd', 'wuse 1', 'wuse1', 'asokoro', 'gudu', 'apo']
   },
   {
     zone: 3,
     name: 'Outer',
-    fee: 600000, // N6,000
+    fee: 6000,
     areas: ['kubwa', 'lugbe', 'karu', 'nyanya', 'gwagwalada', 'zuba']
   },
   {
