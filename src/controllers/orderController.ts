@@ -39,7 +39,7 @@ const DELIVERY_ZONES: ZoneConfig[] = [
     zone: 2,
     name: 'Mid',
     fee: 3500,
-    areas: ['maitama', 'garki', 'cbd', 'wuse 1', 'wuse1', 'asokoro', 'gudu', 'apo']
+    areas: ['maitama', 'garki', 'cbd', 'wuse', 'wuse 1', 'wuse1', 'asokoro', 'gudu', 'apo']
   },
   {
     zone: 3,
