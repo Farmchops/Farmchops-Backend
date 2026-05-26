@@ -236,6 +236,10 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Cart is empty' });
     }
 
+    // Always treat as domestic Nigeria
+    deliveryInfo.country = 'NG';
+    deliveryInfo.isInternational = false;
+
     // Calculate delivery fee if not provided
     let calculatedDeliveryFee = deliveryFee;
     if (!calculatedDeliveryFee || calculatedDeliveryFee === 0) {

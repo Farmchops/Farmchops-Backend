@@ -450,7 +450,6 @@ deliveryInfo: {
         type: String,
         trim: true,
         uppercase: true,
-        maxlength: 2,
         default: 'NG'
     },
     postalCode: {
