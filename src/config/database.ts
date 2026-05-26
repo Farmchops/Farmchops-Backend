@@ -13,40 +13,42 @@ class DatabaseConnection {
     return DatabaseConnection.instance;
   }
 
-  public async connect(): Promise<void> {
+  public async connect(retries = 10, delayMs = 3000): Promise<void> {
     if (this.isConnected) {
       console.log('Database already connected');
       return;
     }
 
-    try {
-      const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/farmchops';
-      
-      await mongoose.connect(mongoUri);
-      
-      this.isConnected = true;
-      console.log('Mongo DB connected successfully');
-      
-      // Connection event listeners
-      mongoose.connection.on('connected', () => {
-        console.log('Mongoose connected to MongoDB');
-      });
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/farmchops';
 
-      mongoose.connection.on('error', (error) => {
-        console.error('MongoDB connection error:', error);
-        this.isConnected = false;
-      });
-
-      mongoose.connection.on('disconnected', () => {
-        console.log('MongoDB disconnected');
-        this.isConnected = false;
-      });
-
-
-    } catch (error) {
-      console.error('Failed to connect to MongoDB:', error);
+    mongoose.connection.on('error', (error) => {
+      console.error('MongoDB connection error:', error);
       this.isConnected = false;
-      throw error;
+    });
+
+    mongoose.connection.on('disconnected', () => {
+      console.log('MongoDB disconnected');
+      this.isConnected = false;
+    });
+
+    mongoose.connection.on('connected', () => {
+      console.log('Mongoose connected to MongoDB');
+    });
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        await mongoose.connect(mongoUri);
+        this.isConnected = true;
+        console.log('Mongo DB connected successfully');
+        return;
+      } catch (error) {
+        console.error(`MongoDB connection attempt ${attempt}/${retries} failed:`, (error as Error).message);
+        if (attempt === retries) {
+          console.error('All MongoDB connection attempts exhausted. Exiting.');
+          process.exit(1);
+        }
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
   }
 

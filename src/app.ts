@@ -39,6 +39,7 @@ import addressRoutes from './routes/addressRoutes';
 import contactRoutes from './routes/contactRoutes';
 import marketerRoutes from './routes/marketerRoutes';
 import discountRoutes from './routes/discountRoutes';
+import shippingRoutes from './routes/shippingRoutes';
 import userRoutes from './routes/userRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
 import websocketService from './services/websocketService';
@@ -161,6 +162,7 @@ app.use('/api/paylater', paylaterRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/coupons', discountRoutes);
+app.use('/api/shipping', shippingRoutes);
 
 // Admin routes (specific paths BEFORE general /api/admin)
 app.use('/api/admin/auth', adminAuthRoutes);
