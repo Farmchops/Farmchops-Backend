@@ -100,6 +100,8 @@ export interface IOrder extends Document {
         city: string;
         state: string;
         phoneNumber: string;
+        country?: string;
+        postalCode?: string;
         delveryDate?: Date;
         deliveryNote?: string
     };
@@ -160,6 +162,8 @@ export interface IOrderModel extends Model<IOrder> {
             city: string;
             state: string;
             phoneNumber: string;
+            country?: string;
+            postalCode?: string;
         };
         paymentMethod: 'wallet' | 'pay_later' | 'paystack';
         deliveryFee?: number;
@@ -442,6 +446,18 @@ deliveryInfo: {
         required: [true, 'Phone number is required'],
         trim: true
     },
+    country: {
+        type: String,
+        trim: true,
+        uppercase: true,
+        maxlength: 2,
+        default: 'NG'
+    },
+    postalCode: {
+        type: String,
+        trim: true,
+        maxlength: 20
+    },
     deliveryDate: Date,
     deliveryNotes: {
         type: String,
@@ -680,6 +696,8 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         city: string,
         state: string,
         phoneNumber: string;
+        country?: string;
+        postalCode?: string;
     };
     paymentMethod: 'wallet' | 'pay_later' | 'paystack';
     deliveryFee?: number;
@@ -830,8 +848,8 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
     const finalSubtotal = data.subtotalBeforeDiscount ? discountedSubtotal : subtotal;
     
     const deliveryFee = data.deliveryFee || 0;
-    const tax = Math.round(finalSubtotal * 0.075); // 7.5% tax on discounted subtotal
-    const totalAmount = finalSubtotal + deliveryFee + tax;
+    const tax = 0;
+    const totalAmount = finalSubtotal + deliveryFee;
 
     const incrementedDeals: Array<{ dealId: mongoose.Types.ObjectId; quantity: number }> = [];
     let createdRedemptionIds: mongoose.Types.ObjectId[] = [];

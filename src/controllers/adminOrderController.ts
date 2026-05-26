@@ -256,6 +256,7 @@ export const markOrderProcessing = createActionHandler('mark-processing');
 export const markOrderReadyForDispatch = createActionHandler('mark-ready-for-dispatch');
 export const assignOrderRider = createActionHandler('assign-rider');
 export const confirmOrderPickup = createActionHandler('confirm-pickup');
+export const confirmOrderDelivery = createActionHandler('confirm-delivery');
 export const failOrderDelivery = createActionHandler('fail-delivery');
 export const returnOrderToDispatch = createActionHandler('return-to-dispatch');
 export const cancelOrder = createActionHandler('cancel-order');

@@ -109,22 +109,22 @@ const ACTION_DEFINITIONS: Record<WorkflowAction, ActionDefinition> = {
     guard: (order) => order.handoverCodeActive !== false && order.paymentStatus === 'paid'
   },
   'confirm-pickup': {
-    from: ['awaiting_pickup'],
+    from: ['awaiting_pickup', 'ready_for_dispatch'],
     to: 'en_route',
     requiredPermission: PERMISSIONS.ORDERS_DISPATCH_HANDOVER,
     nextOwner: NEXT_STAGE_OWNER.en_route,
-    ownerRoles: ['logistics','rider'],
+    ownerRoles: ['logistics', 'rider', 'operations_officer'],
     requires: { note: false, proof: false },
-    guard: (order) => Boolean(order.assignedRider?.rider) && order.paymentStatus === 'paid'
+    guard: (order) => order.paymentStatus === 'paid'
   },
   'confirm-delivery': {
     from: ['en_route'],
     to: 'delivered',
     requiredPermission: PERMISSIONS.ORDERS_DELIVERY_CONFIRM,
     nextOwner: NEXT_STAGE_OWNER.delivered,
-    ownerRoles: ['logistics','rider'],
-    requires: { handoverCode: true, proof: false },
-    guard: (order) => Boolean(order.assignedRider?.rider && order.handoverCodeActive)
+    ownerRoles: ['logistics', 'rider', 'operations_officer'],
+    requires: { handoverCode: false, proof: false },
+    guard: (order) => order.paymentStatus === 'paid'
   },
   'close-order': {
     from: ['delivered'],
@@ -286,53 +286,50 @@ export const performAction = async ({ orderId, action, payload = {}, user }: Per
       break;
     }
     case 'confirm-pickup': {
-      if (!order.assignedRider?.rider) {
-        throw new OrderWorkflowError('Order has no assigned rider', 400, 'NO_ASSIGNED_RIDER');
-      }
-      const { id: pickupRiderId } = extractUserRef(order.assignedRider.rider as unknown);
       metadata = {
-        riderId: pickupRiderId || order.assignedRider.rider,
+        riderId: order.assignedRider?.rider || null,
         pickupAt: new Date(),
         attachments: payload.proof || null
       };
-      note = payload.note || 'Order handed to rider';
+      note = payload.note || 'Order dispatched';
       break;
     }
     case 'confirm-delivery': {
-      if (!payload.handoverCode || typeof payload.handoverCode !== 'string') {
-        throw new OrderWorkflowError('handoverCode is required', 400, 'INVALID_PAYLOAD');
-      }
-      const codeHash = order.handoverCodeHash;
-      if (!codeHash) {
-        throw new OrderWorkflowError('Handover code not configured', 409, 'MISSING_HANDOVER');
-      }
-
-  const { id: assignedRiderId, user: assignedRiderDoc } = extractUserRef(order.assignedRider?.rider as unknown);
-  const isAssignedRider = assignedRiderId ? assignedRiderId.equals(actorId) : false;
       const canOverride = hasPermission(userPermissions, PERMISSIONS.ORDERS_OVERRIDE_CHANGE);
-      if (!isAssignedRider && !canOverride) {
-        throw new OrderWorkflowError('Only the assigned rider can confirm delivery', 403, 'FORBIDDEN');
-      }
+      const { id: assignedRiderId } = extractUserRef(order.assignedRider?.rider as unknown);
+      const isAssignedRider = assignedRiderId ? assignedRiderId.equals(actorId) : false;
 
-      const hashed = hashHandoverCode(payload.handoverCode.trim());
-      if (hashed !== codeHash) {
-        await Order.updateOne({ _id: order._id }, { $inc: { handoverCodeAttempts: 1 } });
-        throw new OrderWorkflowError('Invalid handover code', 403, 'INVALID_HANDOVER_CODE');
+      if (!canOverride) {
+        // Rider path — handover code required
+        if (!payload.handoverCode || typeof payload.handoverCode !== 'string') {
+          throw new OrderWorkflowError('handoverCode is required', 400, 'INVALID_PAYLOAD');
+        }
+        if (!isAssignedRider) {
+          throw new OrderWorkflowError('Only the assigned rider can confirm delivery', 403, 'FORBIDDEN');
+        }
+        const codeHash = order.handoverCodeHash;
+        if (!codeHash) {
+          throw new OrderWorkflowError('Handover code not configured', 409, 'MISSING_HANDOVER');
+        }
+        const hashed = hashHandoverCode(payload.handoverCode.trim());
+        if (hashed !== codeHash) {
+          await Order.updateOne({ _id: order._id }, { $inc: { handoverCodeAttempts: 1 } });
+          throw new OrderWorkflowError('Invalid handover code', 403, 'INVALID_HANDOVER_CODE');
+        }
+        order.handoverCodeAttempts = 0;
+        order.handoverCodeActive = false;
+        order.handoverVerifiedAt = new Date();
       }
-
-      order.handoverCodeAttempts = 0;
-      order.handoverCodeActive = false;
-      order.handoverVerifiedAt = new Date();
 
       metadata = {
         riderId: assignedRiderId || null,
-        riderName: assignedRiderDoc ? getActorName(assignedRiderDoc) : undefined,
         proof: payload.proof || null,
         location: payload.location || null,
         submittedBy: actorId,
-        submittedByName: getActorName(user)
+        submittedByName: getActorName(user),
+        adminOverride: canOverride
       };
-      note = payload.note || 'Delivery confirmed via rider handover code';
+      note = payload.note || (canOverride ? 'Delivery confirmed by admin' : 'Delivery confirmed via handover code');
       break;
     }
     case 'close-order': {

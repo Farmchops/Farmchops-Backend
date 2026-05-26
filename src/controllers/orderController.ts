@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
 import { getCart, clearCart } from '../utils/cartHelpers';
-import { getDistanceBetween } from '../services/googleMapsService';
-import { CheckoutRequest, CheckoutSummaryResponse } from '../types/order.types';
+import { getInternationalShippingRate } from '../services/shippingService';
+import { CheckoutRequest, CheckoutSummaryResponse, DeliveryInfo } from '../types/order.types';
 import { Order, IOrder } from '../models/Order';
 import { Product } from '../models/Product';
 import { Deal } from '../models/Deal';
@@ -19,21 +19,68 @@ import { calculateOrderDiscounts } from '../services/discountService';
 import Coupon from '../models/Coupon';
 import Marketer from '../models/Marketer';
 
-// Fee config (NGN in kobo)
-const BASE_FEE = 200; // base delivery fee
-const PER_KM = 100; // per kilometer
-const MIN_FEE = 300;
-const FREE_THRESHOLD = 10000000; // free delivery if subtotal >= this (in kobo) - 100,000 Naira
+// Abuja delivery zones (fees in kobo)
+const FREE_THRESHOLD = 1000000000; // free delivery if subtotal >= N100,000
 
-function calculateFee(subtotal: number, distanceKm: number): number {
+interface ZoneConfig {
+  zone: number;
+  name: string;
+  fee: number;
+  areas: string[];
+}
+
+const DELIVERY_ZONES: ZoneConfig[] = [
+  {
+    zone: 1,
+    name: 'Nearest',
+    fee: 250000, // N2,500
+    areas: ['utako', 'wuse 2', 'wuse2', 'mabushi', 'kado', 'life camp', 'lifecamp', 'gwarinpa', 'katampe']
+  },
+  {
+    zone: 2,
+    name: 'Mid',
+    fee: 350000, // N3,500
+    areas: ['maitama', 'garki', 'cbd', 'wuse 1', 'wuse1', 'asokoro', 'gudu', 'apo']
+  },
+  {
+    zone: 3,
+    name: 'Outer',
+    fee: 600000, // N6,000
+    areas: ['kubwa', 'lugbe', 'karu', 'nyanya', 'gwagwalada', 'zuba']
+  },
+  {
+    zone: 4,
+    name: 'Far',
+    fee: -1,
+    areas: ['bwari', 'kwali', 'kuje']
+  }
+];
+
+const PICKUP_KEYWORDS = ['jabi', 'farmchops pickup', 'pickup', 'self pickup', 'self-pickup'];
+
+function isPickupAddress(address: string): boolean {
+  const lower = address.toLowerCase();
+  return PICKUP_KEYWORDS.some(k => lower.includes(k));
+}
+
+function detectDeliveryZone(address: string): ZoneConfig | null {
+  const lower = address.toLowerCase();
+  for (const zone of DELIVERY_ZONES) {
+    for (const area of zone.areas) {
+      if (lower.includes(area)) return zone;
+    }
+  }
+  return null;
+}
+
+function calculateZoneFee(subtotal: number, zone: ZoneConfig): number {
   if (subtotal >= FREE_THRESHOLD) return 0;
-  const fee = Math.max(MIN_FEE, Math.round(BASE_FEE + PER_KM * distanceKm));
-  return fee;
+  return zone.fee;
 }
 
 export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, CheckoutRequest>, res: Response<CheckoutSummaryResponse>): Promise<Response<CheckoutSummaryResponse>> => {
   try {
-    const { name, phone, address, origin, notes, couponCode } = req.body;
+    const { name, phone, address, country = 'NG', postalCode, origin, notes, couponCode } = req.body;
     if (!name || !phone || !address) {
       return res.status(400).json({ success: false, message: 'name, phone and address are required' });
     }
@@ -43,15 +90,55 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
       return res.status(400).json({ success: false, message: 'Cart is empty' });
     }
 
-    // Server origin (warehouse) - Farmchops warehouse at Jabi District, Abuja
-    const warehouse = origin || process.env.DEFAULT_WAREHOUSE_COORDS || '9.0765,7.4165';
-
-    // Use Google Distance Matrix to calculate distance
-    const distanceResult = await getDistanceBetween(warehouse, address);
-    const distanceKm = Number((distanceResult.distanceMeters / 1000).toFixed(2));
-
+    const normalizedCountry = country.toUpperCase();
+    const isInternational = normalizedCountry !== 'NG';
     const subtotalBeforeDiscount = cart.totalAmount;
-    let deliveryFee = calculateFee(subtotalBeforeDiscount, distanceKm);
+
+    let deliveryFee: number;
+    let deliveryDetails: Omit<DeliveryInfo, 'fee'>;
+
+    if (isInternational) {
+      const intlRate = getInternationalShippingRate(normalizedCountry);
+      deliveryFee = intlRate.rate;
+      deliveryDetails = {
+        address,
+        country: normalizedCountry,
+        isInternational: true,
+        carrier: intlRate.carrier,
+        estimatedDays: intlRate.estimatedDays,
+      };
+    } else if (isPickupAddress(address)) {
+      deliveryFee = 0;
+      deliveryDetails = {
+        address,
+        country: 'NG',
+        isInternational: false,
+        zone: 0,
+        zoneName: 'Pickup'
+      };
+    } else {
+      const detectedZone = detectDeliveryZone(address);
+      if (!detectedZone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Delivery is not available for your area. We currently deliver to selected areas in Abuja only.'
+        });
+      }
+      if (detectedZone.zone === 4) {
+        return res.status(400).json({
+          success: false,
+          message: 'Delivery to Bwari, Kwali, and Kuje is not yet available. Stay tuned!'
+        });
+      }
+      deliveryFee = calculateZoneFee(subtotalBeforeDiscount, detectedZone);
+      deliveryDetails = {
+        address,
+        country: 'NG',
+        isInternational: false,
+        zone: detectedZone.zone,
+        zoneName: detectedZone.name,
+      };
+    }
 
     // Calculate discounts if user is authenticated
     let discountInfo: any = null;
@@ -77,44 +164,30 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
           finalSubtotal = discountResult.finalSubtotal;
           discountAmount = discountResult.totalDiscount;
 
-          // Apply free delivery if coupon provides it
           if (discountResult.hasFreeDelivery) {
             deliveryFee = 0;
           }
         }
       } catch (discountError) {
         console.error('Discount calculation error:', discountError);
-        // Continue without discount if there's an error
       }
     }
-
-    const tax = Math.round(finalSubtotal * 0.075); // 7.5% tax on subtotal after discount
 
     const totals = {
       subtotalBeforeDiscount,
       discount: discountAmount,
       subtotal: finalSubtotal,
       deliveryFee,
-      tax,
-      grandTotal: finalSubtotal + deliveryFee + tax
+      tax: 0,
+      grandTotal: finalSubtotal + deliveryFee
     };
 
     return res.json({
       success: true,
       data: {
         cart,
-        customerInfo: {
-          name,
-          phone
-        },
-        delivery: {
-          address,
-          distanceKm,
-          durationSeconds: distanceResult.durationSeconds,
-          distanceText: distanceResult.distanceText,
-          durationText: distanceResult.durationText,
-          fee: deliveryFee
-        },
+        customerInfo: { name, phone },
+        delivery: { ...deliveryDetails, fee: deliveryFee },
         notes: notes || null,
         discount: discountInfo,
         totals
@@ -179,14 +252,22 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Calculate delivery fee if not provided
     let calculatedDeliveryFee = deliveryFee;
     if (!calculatedDeliveryFee || calculatedDeliveryFee === 0) {
-      try {
-        const warehouse = process.env.DEFAULT_WAREHOUSE_COORDS || '6.5244,3.3792';
-        const distanceResult = await getDistanceBetween(warehouse, deliveryInfo.address);
-        const distanceKm = Number((distanceResult.distanceMeters / 1000).toFixed(2));
-        calculatedDeliveryFee = calculateFee(cart.totalAmount, distanceKm);
-      } catch (error) {
-        console.error('Error calculating delivery fee:', error);
-        calculatedDeliveryFee = MIN_FEE;
+      const orderCountry = deliveryInfo.country?.toUpperCase();
+      if (orderCountry && orderCountry !== 'NG') {
+        calculatedDeliveryFee = getInternationalShippingRate(orderCountry).rate;
+      } else if (isPickupAddress(deliveryInfo.address)) {
+        calculatedDeliveryFee = 0;
+      } else {
+        const detectedZone = detectDeliveryZone(deliveryInfo.address);
+        if (!detectedZone || detectedZone.zone === 4) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({
+            success: false,
+            message: 'Delivery is not available for your area.'
+          });
+        }
+        calculatedDeliveryFee = calculateZoneFee(cart.totalAmount, detectedZone);
       }
     }
 
@@ -447,21 +528,31 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Send order confirmation email only for non-Paystack orders
     // For Paystack orders, email will be sent after payment verification
     if (user && paymentMethod !== 'paystack') {
+      const orderItems = order.items.map(item => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.totalPrice
+      }));
+      const deliveryAddress = `${deliveryInfo.address}, ${deliveryInfo.city}, ${deliveryInfo.state}`;
       await emailService.sendOrderConfirmationEmail(user.email, {
         orderNumber: order.orderNumber,
         customerName: `${user.firstName} ${user.lastName}`,
-        items: order.items.map(item => ({
-          productName: item.productName,
-          quantity: item.quantity,
-          price: item.totalPrice
-        })),
+        items: orderItems,
         subtotal: order.subtotal,
         deliveryFee: order.deliveryFee,
         tax: order.tax,
         totalAmount: order.totalAmount,
-        deliveryAddress: `${deliveryInfo.address}, ${deliveryInfo.city}, ${deliveryInfo.state}`,
+        deliveryAddress,
         paymentMethod: paymentMethod,
         handoverCode
+      });
+      await emailService.sendNewOrderNotificationEmail({
+        orderNumber: order.orderNumber,
+        customerName: `${user.firstName} ${user.lastName}`,
+        customerEmail: user.email,
+        totalAmount: order.totalAmount,
+        deliveryAddress,
+        items: orderItems
       });
     }
 
@@ -708,21 +799,31 @@ export const paystackWebhook = async (req: Request, res: Response) => {
         const user = await User.findById(order.user);
         if (user) {
           const handoverCode = order.handoverCodePlain;
+          const orderItems = order.items.map(item => ({
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.totalPrice
+          }));
+          const deliveryAddress = `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`;
           await emailService.sendOrderConfirmationEmail(user.email, {
             orderNumber: order.orderNumber,
             customerName: `${user.firstName} ${user.lastName}`,
-            items: order.items.map(item => ({
-              productName: item.productName,
-              quantity: item.quantity,
-              price: item.totalPrice
-            })),
+            items: orderItems,
             subtotal: order.subtotal,
             deliveryFee: order.deliveryFee,
             tax: order.tax,
             totalAmount: order.totalAmount,
-            deliveryAddress: `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`,
+            deliveryAddress,
             paymentMethod: 'Paystack',
             handoverCode
+          });
+          await emailService.sendNewOrderNotificationEmail({
+            orderNumber: order.orderNumber,
+            customerName: `${user.firstName} ${user.lastName}`,
+            customerEmail: user.email,
+            totalAmount: order.totalAmount,
+            deliveryAddress,
+            items: orderItems
           });
         }
 
@@ -787,21 +888,31 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
         const user = await User.findById(order.user);
         if (user) {
           const handoverCode = order.handoverCodePlain;
+          const orderItems = order.items.map(item => ({
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.totalPrice
+          }));
+          const deliveryAddress = `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`;
           await emailService.sendOrderConfirmationEmail(user.email, {
             orderNumber: order.orderNumber,
             customerName: `${user.firstName} ${user.lastName}`,
-            items: order.items.map(item => ({
-              productName: item.productName,
-              quantity: item.quantity,
-              price: item.totalPrice
-            })),
+            items: orderItems,
             subtotal: order.subtotal,
             deliveryFee: order.deliveryFee,
             tax: order.tax,
             totalAmount: order.totalAmount,
-            deliveryAddress: `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`,
+            deliveryAddress,
             paymentMethod: 'Paystack',
             handoverCode
+          });
+          await emailService.sendNewOrderNotificationEmail({
+            orderNumber: order.orderNumber,
+            customerName: `${user.firstName} ${user.lastName}`,
+            customerEmail: user.email,
+            totalAmount: order.totalAmount,
+            deliveryAddress,
+            items: orderItems
           });
         }
       }

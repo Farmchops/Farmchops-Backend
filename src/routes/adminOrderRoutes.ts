@@ -7,6 +7,7 @@ import {
 	markOrderReadyForDispatch,
 	assignOrderRider,
 	confirmOrderPickup,
+	confirmOrderDelivery,
 	failOrderDelivery,
 	returnOrderToDispatch,
 	cancelOrder,
@@ -43,6 +44,7 @@ router.patch('/orders/:id/actions/mark-processing', requirePermission(PERMISSION
 router.patch('/orders/:id/actions/mark-ready-for-dispatch', requirePermission(PERMISSIONS.ORDERS_PROCESSING_COMPLETE), markOrderReadyForDispatch);
 router.patch('/orders/:id/actions/assign-rider', requirePermission(PERMISSIONS.ORDERS_DISPATCH_ASSIGN), assignOrderRider);
 router.patch('/orders/:id/actions/confirm-pickup', requirePermission(PERMISSIONS.ORDERS_DISPATCH_HANDOVER), confirmOrderPickup);
+router.patch('/orders/:id/actions/confirm-delivery', requirePermission(PERMISSIONS.ORDERS_OVERRIDE_CHANGE), confirmOrderDelivery);
 router.patch('/orders/:id/actions/fail-delivery', requirePermission(PERMISSIONS.ORDERS_DISPATCH_FAIL), failOrderDelivery);
 router.patch('/orders/:id/actions/return-to-dispatch', requirePermission(PERMISSIONS.ORDERS_DISPATCH_RETURN), returnOrderToDispatch);
 router.patch('/orders/:id/actions/cancel', requirePermission(PERMISSIONS.ORDERS_OVERRIDE_CANCEL), cancelOrder);

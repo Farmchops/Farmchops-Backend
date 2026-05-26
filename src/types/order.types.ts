@@ -2,18 +2,24 @@ export interface CheckoutRequest {
   name: string;
   phone: string;
   address: string;
-  origin?: string; // Optional warehouse coordinates override
-  notes?: string; // Optional customer notes for special instructions
-  couponCode?: string; // Optional coupon code for discount
+  country?: string;     // ISO 3166-1 alpha-2, e.g. "NG", "GB". Defaults to "NG"
+  postalCode?: string;
+  origin?: string;
+  notes?: string;
+  couponCode?: string;
 }
 
 export interface DeliveryInfo {
   address: string;
-  distanceKm: number;
-  durationSeconds: number;
-  distanceText: string;
-  durationText: string;
+  country: string;
+  isInternational: boolean;
   fee: number;
+  // Domestic zone-based
+  zone?: number;
+  zoneName?: string;
+  // International only
+  carrier?: string;
+  estimatedDays?: string;
 }
 
 export interface CustomerInfo {
