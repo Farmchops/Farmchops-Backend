@@ -91,7 +91,7 @@ function calculateZoneFee(subtotal: number, zone: ZoneConfig): number {
 
 export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, CheckoutRequest>, res: Response<CheckoutSummaryResponse>): Promise<Response<CheckoutSummaryResponse>> => {
   try {
-    const { name, phone, address, postalCode, origin, notes, couponCode } = req.body;
+    const { name, phone, address, area, postalCode, origin, notes, couponCode } = req.body;
     if (!name || !phone || !address) {
       return res.status(400).json({ success: false, message: 'name, phone and address are required' });
     }
@@ -106,7 +106,7 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
     let deliveryFee: number;
     let deliveryDetails: Omit<DeliveryInfo, 'fee'>;
 
-    if (isPickupAddress(address)) {
+    if (isPickupAddress(address) || (area && isPickupAddress(area))) {
       deliveryFee = 0;
       deliveryDetails = {
         address,
@@ -116,7 +116,7 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
         zoneName: 'Pickup'
       };
     } else {
-      const detectedZone = detectDeliveryZone(address);
+      const detectedZone = (area ? detectDeliveryZone(area) : null) || detectDeliveryZone(address);
       if (!detectedZone) {
         return res.status(400).json({
           success: false,
@@ -210,6 +210,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
 
     const {
       deliveryInfo,
+      area,
       paymentMethod,
       deliveryFee,
       couponCode
@@ -249,10 +250,10 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Calculate delivery fee if not provided
     let calculatedDeliveryFee = deliveryFee;
     if (!calculatedDeliveryFee || calculatedDeliveryFee === 0) {
-      if (isPickupAddress(deliveryInfo.address)) {
+      if (isPickupAddress(deliveryInfo.address) || (area && isPickupAddress(area))) {
         calculatedDeliveryFee = 0;
       } else {
-        const detectedZone = detectDeliveryZone(deliveryInfo.address);
+        const detectedZone = (area ? detectDeliveryZone(area) : null) || detectDeliveryZone(deliveryInfo.address);
         if (!detectedZone) {
           await session.abortTransaction();
           session.endSession();

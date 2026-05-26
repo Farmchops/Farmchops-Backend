@@ -2,7 +2,7 @@ export interface CheckoutRequest {
   name: string;
   phone: string;
   address: string;
-  country?: string;     // ISO 3166-1 alpha-2, e.g. "NG", "GB". Defaults to "NG"
+  area?: string;
   postalCode?: string;
   origin?: string;
   notes?: string;
