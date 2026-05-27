@@ -118,8 +118,14 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
     } else {
       const detectedZone = (area ? detectDeliveryZone(area) : null) || detectDeliveryZone(address);
       if (!detectedZone) {
+        if (area) {
+          return res.status(400).json({
+            success: false,
+            message: 'Delivery is not available for your area. We currently deliver to selected areas in Abuja only.'
+          });
+        }
         const isAbuja = /abuja|fct|federal capital/i.test(address);
-        if (!area || isAbuja) {
+        if (isAbuja) {
           return res.status(200).json({
             success: false,
             needsAreaSelection: true,
