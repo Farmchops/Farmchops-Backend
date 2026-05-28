@@ -81,7 +81,7 @@ export const newOrderNotificationTemplate = (data: NewOrderNotificationData): { 
     </div>
 
     <div style="padding:0 32px 32px;text-align:center;">
-      <a href="${process.env.ADMIN_URL || 'https://admin.farmchops.com'}/orders"
+      <a href="${process.env.ADMIN_URL || 'https://farmchops.com/admin'}/orders"
         style="display:inline-block;background:#28a745;color:#ffffff;font-size:15px;font-weight:600;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.3px;">
         View Order in Dashboard
       </a>
