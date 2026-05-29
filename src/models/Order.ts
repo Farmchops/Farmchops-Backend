@@ -642,11 +642,14 @@ OrderSchema.methods.addStatusHistory = function(entry: OrderStatusHistoryEntry) 
 OrderSchema.pre<IOrder>('save', async function(next) {
     if (this.isNew) {
         const year = new Date().getFullYear();
-        const count = await mongoose.model('Order').countDocuments({
-            createdAt: { $gte: new Date(`${year}-01-01`) }
-        });
+        const lastOrder = await mongoose.model('Order').findOne(
+            { orderNumber: new RegExp(`^FCP-${year}-`) },
+            { orderNumber: 1 },
+            { sort: { orderNumber: -1 } }
+        );
+        const lastNum = lastOrder ? parseInt(lastOrder.orderNumber.split('-')[2]) : 0;
 
-        this.orderNumber =  `FCP-${year}-${String(count + 1).padStart(7, '0')}`;
+        this.orderNumber = `FCP-${year}-${String(lastNum + 1).padStart(7, '0')}`;
 
         if (!this.handoverCodeHash) {
             const { code, hashed, masked } = generateHandoverCode();
