@@ -19,7 +19,7 @@ import Coupon from '../models/Coupon';
 import Marketer from '../models/Marketer';
 
 // Abuja delivery zones (fees in Naira)
-const FREE_THRESHOLD = 100000; // free delivery if subtotal >= ₦100,000
+const FREE_THRESHOLD = 500000; // free delivery if subtotal >= ₦500,000
 
 interface ZoneConfig {
   zone: number;
