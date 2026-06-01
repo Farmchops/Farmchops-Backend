@@ -24,7 +24,8 @@ import {
 	getRevenueTrend,
 	getPaymentMethodsBreakdown,
 	getAverageOrderValue,
-	getTopProducts
+	getTopProducts,
+	downloadOrderInvoice
 } from '../controllers/adminOrderController';
 import { authenticateToken, requireAdmin, requirePermission } from '../middleware/auth';
 import { PERMISSIONS } from '../utils/permissions';
@@ -38,6 +39,7 @@ router.get('/riders', requirePermission(PERMISSIONS.ORDERS_DISPATCH_ASSIGN), lis
 router.get('/orders/workflow/config', requirePermission(PERMISSIONS.ORDERS_WORKFLOW_VIEW), getOrderWorkflowConfiguration);
 router.get('/orders', getOrders);
 router.get('/orders/:id/actions', requirePermission(PERMISSIONS.ORDERS_WORKFLOW_VIEW), getOrderAvailableActions);
+router.get('/orders/:id/invoice', downloadOrderInvoice);
 router.get('/orders/:id', getOrderById);
 
 router.patch('/orders/:id/actions/mark-processing', requirePermission(PERMISSIONS.ORDERS_PROCESSING_START), markOrderProcessing);

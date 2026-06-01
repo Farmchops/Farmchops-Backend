@@ -5,6 +5,7 @@ import { Order, IOrder } from '../models/Order';
 import { AuthRequest } from '../middleware/auth';
 import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions, getWorkflowConfig } from '../services/orderWorkflowService';
 import websocketService from '../services/websocketService';
+import { generateInvoicePDF } from '../services/invoiceService';
 
 
 // GET /api/admin/orders?search=&status=&page=&limit=&sort=
@@ -1014,5 +1015,18 @@ export const getTopProducts = async (req: Request, res: Response): Promise<Respo
     return res.json({ success: true, data: results });
   } catch (error) {
     return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Server error' });
+  }
+};
+
+export const downloadOrderInvoice = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const order = await Order.findById(req.params.id).populate('user', 'firstName lastName email');
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found' });
+      return;
+    }
+    generateInvoicePDF(order.toObject(), res);
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to generate invoice' });
   }
 };
