@@ -18,8 +18,8 @@ function drawInvoice(doc: PDFKit.PDFDocument, order: any): void {
   doc.fontSize(10).font('Helvetica').text('Fresh Farm Produce Delivered', 65, 90);
 
   // INVOICE label top right
-  doc.fontSize(28).font('Helvetica-Bold').text('INVOICE', 0, 65, { align: 'right' });
-  doc.fontSize(10).font('Helvetica').text(order.orderNumber, 0, 98, { align: 'right' });
+  doc.fontSize(28).font('Helvetica-Bold').text('INVOICE', 50, 65, { align: 'right', width: pageWidth });
+  doc.fontSize(10).font('Helvetica').text(order.orderNumber, 50, 98, { align: 'right', width: pageWidth });
 
   doc.fillColor(dark);
 
@@ -66,9 +66,9 @@ function drawInvoice(doc: PDFKit.PDFDocument, order: any): void {
   doc.rect(50, y, pageWidth, 24).fill(green);
   doc.fillColor('#ffffff').fontSize(10).font('Helvetica-Bold');
   doc.text('ITEM', 60, y + 7);
-  doc.text('QTY', 330, y + 7, { width: 55, align: 'center' });
-  doc.text('UNIT PRICE', 390, y + 7, { width: 85, align: 'right' });
-  doc.text('TOTAL', 480, y + 7, { width: 65, align: 'right' });
+  doc.text('QTY', 300, y + 7, { width: 50, align: 'center' });
+  doc.text('UNIT PRICE', 355, y + 7, { width: 90, align: 'right' });
+  doc.text('TOTAL', 450, y + 7, { width: 95, align: 'right' });
 
   y += 24;
 
@@ -84,17 +84,17 @@ function drawInvoice(doc: PDFKit.PDFDocument, order: any): void {
 
     doc.fillColor(dark).fontSize(10).font('Helvetica');
     doc.text(item.productName || '-', 60, rowY + 9, { width: 265 });
-    doc.text(String(qty), 330, rowY + 9, { width: 55, align: 'center' });
-    doc.text(formatAmount(unitPrice), 390, rowY + 9, { width: 85, align: 'right' });
-    doc.text(formatAmount(total), 480, rowY + 9, { width: 65, align: 'right' });
+    doc.text(String(qty), 300, rowY + 9, { width: 50, align: 'center' });
+    doc.text(formatAmount(unitPrice), 355, rowY + 9, { width: 90, align: 'right' });
+    doc.text(formatAmount(total), 450, rowY + 9, { width: 95, align: 'right' });
   });
 
   y += items.length * 28 + 16;
 
   // Totals
   const totalsX = 370;
-  const totalsValueX = 480;
-  const totalsWidth = 65;
+  const totalsValueX = 400;
+  const totalsWidth = 145;
 
   doc.moveTo(50, y).lineTo(50 + pageWidth, y).strokeColor('#e0e0e0').lineWidth(1).stroke();
   y += 12;
