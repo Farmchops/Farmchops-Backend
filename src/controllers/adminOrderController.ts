@@ -5,7 +5,7 @@ import { Order, IOrder } from '../models/Order';
 import { AuthRequest } from '../middleware/auth';
 import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions, getWorkflowConfig } from '../services/orderWorkflowService';
 import websocketService from '../services/websocketService';
-import { generateInvoicePDF } from '../services/invoiceService';
+import { generateInvoicePDF, generateBulkInvoicePDF } from '../services/invoiceService';
 
 
 // GET /api/admin/orders?search=&status=&page=&limit=&sort=
@@ -1028,5 +1028,44 @@ export const downloadOrderInvoice = async (req: AuthRequest, res: Response): Pro
     generateInvoicePDF(order.toObject(), res);
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to generate invoice' });
+  }
+};
+
+export const downloadBulkInvoices = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { startDate, endDate, status } = req.query;
+
+    const filter: Record<string, any> = {};
+
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate as string);
+      if (endDate) {
+        const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+
+    if (status) filter.orderStatus = status as string;
+
+    const orders = await Order.find(filter)
+      .populate('user', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+
+    if (orders.length === 0) {
+      res.status(404).json({ success: false, message: 'No orders found for the given filters' });
+      return;
+    }
+
+    const parts: string[] = [];
+    if (status) parts.push(status as string);
+    if (startDate) parts.push((startDate as string).slice(0, 10));
+    if (endDate) parts.push((endDate as string).slice(0, 10));
+    const filename = `invoices${parts.length ? '-' + parts.join('-') : ''}.pdf`;
+
+    generateBulkInvoicePDF(orders.map(o => o.toObject()), res, filename);
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to generate bulk invoices' });
   }
 };
