@@ -112,7 +112,7 @@ function drawInvoice(doc: PDFKit.PDFDocument, order: any): void {
   doc.text(formatAmount(deliveryFee), totalsValueX, y, { width: totalsWidth, align: 'right' });
 
   y += 20;
-  doc.rect(totalsX - 10, y, pageWidth - totalsX + 10, 32).fill(green);
+  doc.rect(totalsX - 10, y, 50 + pageWidth - totalsX + 10, 32).fill(green);
   doc.fillColor('#ffffff').fontSize(12).font('Helvetica-Bold');
   doc.text('TOTAL', totalsX, y + 10);
   doc.text(formatAmount(total), totalsValueX, y + 10, { width: totalsWidth, align: 'right' });
