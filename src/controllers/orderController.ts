@@ -240,12 +240,12 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!paymentMethod || !['wallet', 'pay_later', 'paystack'].includes(paymentMethod)) {
+    if (!paymentMethod || !['wallet', 'pay_later', 'bank_transfer'].includes(paymentMethod)) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'Valid payment method (wallet, pay_later, paystack) is required'
+        message: 'Valid payment method (wallet, pay_later, bank_transfer) is required'
       });
     }
 
@@ -678,6 +678,27 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
           handoverCode,
           paymentLink,
           expiresIn: '7 days'
+        }
+      });
+    }
+
+    // For bank_transfer, return bank account details
+    if (paymentMethod === 'bank_transfer') {
+      return res.status(201).json({
+        success: true,
+        message: 'Order created successfully. Please transfer the exact amount to complete your order.',
+        data: {
+          order,
+          handoverCode,
+          payment: {
+            method: 'bank_transfer',
+            bankName: 'Wema Bank',
+            accountNumber: '0127214908',
+            accountName: 'Farmchops Ltd',
+            amount: order.totalAmount,
+            reference: order.orderNumber,
+            note: 'Use your order number as the transfer narration'
+          }
         }
       });
     }

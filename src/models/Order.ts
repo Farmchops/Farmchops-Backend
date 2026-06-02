@@ -64,7 +64,7 @@ export interface IOrder extends Document {
     tax?: number;
     totalAmount: number;
 
-    paymentMethod: 'wallet' | 'pay_later' | 'paystack'
+    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer'
     paymentStatus: 'pending' | 'paid' | 'failed';
     orderStatus: OrderStatus;
     currentStageOwnerRole: OrderStageOwner;
@@ -313,7 +313,7 @@ const OrderSchema: Schema = new Schema({
 
     paymentMethod: {
         type: String,
-        enum: ['wallet', 'pay_later', 'paystack'],
+        enum: ['wallet', 'pay_later', 'paystack', 'bank_transfer'],
         required: [true, 'Payement method is required'],
     },
 
@@ -701,7 +701,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         country?: string;
         postalCode?: string;
     };
-    paymentMethod: 'wallet' | 'pay_later' | 'paystack';
+    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer';
     deliveryFee?: number;
     payementReference?: string;
     subtotalBeforeDiscount?: number;

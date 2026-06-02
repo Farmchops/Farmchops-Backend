@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth';
 import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions, getWorkflowConfig } from '../services/orderWorkflowService';
 import websocketService from '../services/websocketService';
 import { generateInvoicePDF, generateBulkInvoicePDF } from '../services/invoiceService';
+import emailService from '../services/emailService';
 
 
 // GET /api/admin/orders?search=&status=&page=&limit=&sort=
@@ -1028,6 +1029,82 @@ export const downloadOrderInvoice = async (req: AuthRequest, res: Response): Pro
     generateInvoicePDF(order.toObject(), res);
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to generate invoice' });
+  }
+};
+
+export const confirmBankTransferPayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const order = await Order.findById(req.params.id).populate('user', 'firstName lastName email');
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found' });
+      return;
+    }
+
+    if (order.paymentMethod !== 'bank_transfer') {
+      res.status(400).json({ success: false, message: 'This action is only for bank transfer orders' });
+      return;
+    }
+
+    if (order.paymentStatus === 'paid') {
+      res.status(400).json({ success: false, message: 'Payment has already been confirmed for this order' });
+      return;
+    }
+
+    const adminName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || 'Admin' : 'Admin';
+
+    order.paymentStatus = 'paid';
+    order.orderStatus = 'ready_for_processing';
+    order.currentStageOwnerRole = 'processing';
+    order.addStatusHistory({
+      status: 'ready_for_processing',
+      note: `Bank transfer payment confirmed by ${adminName}`,
+      role: 'system',
+      updatedByName: adminName
+    });
+    await order.save();
+
+    const user = await User.findById(order.user);
+    if (user) {
+      const orderItems = order.items.map((item: any) => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.totalPrice
+      }));
+      const deliveryAddress = `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`;
+
+      await emailService.sendOrderConfirmationEmail(user.email, {
+        orderNumber: order.orderNumber,
+        customerName: `${user.firstName} ${user.lastName}`,
+        items: orderItems,
+        subtotal: order.subtotal,
+        deliveryFee: order.deliveryFee,
+        tax: order.tax || 0,
+        totalAmount: order.totalAmount,
+        deliveryAddress,
+        paymentMethod: 'Bank Transfer',
+        handoverCode: (order as any).handoverCodePlain
+      });
+
+      await emailService.sendNewOrderNotificationEmail({
+        orderNumber: order.orderNumber,
+        customerName: `${user.firstName} ${user.lastName}`,
+        customerEmail: user.email,
+        totalAmount: order.totalAmount,
+        deliveryAddress,
+        items: orderItems
+      });
+    }
+
+    websocketService.broadcastOrderStatusChanged(
+      (order._id as mongoose.Types.ObjectId).toString(),
+      'pending_payment',
+      'ready_for_processing',
+      order
+    );
+
+    res.json({ success: true, message: 'Bank transfer payment confirmed', data: { order } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to confirm payment' });
   }
 };
 
