@@ -64,14 +64,14 @@ export interface IOrder extends Document {
     tax?: number;
     totalAmount: number;
 
-    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer'
+    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer' | 'alat'
     paymentStatus: 'pending' | 'paid' | 'failed';
     orderStatus: OrderStatus;
     currentStageOwnerRole: OrderStageOwner;
 
     walletTransaction?: mongoose.Types.ObjectId;
     paymentReference?: string;
-    paymentProvider?: 'paystack'
+    paymentProvider?: 'paystack' | 'alat'
     providerResponse?: any;
 
     payLaterInfo?: {
@@ -313,7 +313,7 @@ const OrderSchema: Schema = new Schema({
 
     paymentMethod: {
         type: String,
-        enum: ['wallet', 'pay_later', 'paystack', 'bank_transfer'],
+        enum: ['wallet', 'pay_later', 'paystack', 'bank_transfer', 'alat'],
         required: [true, 'Payement method is required'],
     },
 
@@ -701,7 +701,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         country?: string;
         postalCode?: string;
     };
-    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer';
+    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer' | 'alat';
     deliveryFee?: number;
     payementReference?: string;
     subtotalBeforeDiscount?: number;

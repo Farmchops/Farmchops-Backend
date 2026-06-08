@@ -7,6 +7,7 @@ import { Order, IOrder } from '../models/Order';
 import { Product } from '../models/Product';
 import { Deal } from '../models/Deal';
 import paystackService from '../config/paystack';
+import alatPayService from '../config/alatpay';
 import crypto from 'crypto';
 import emailService from '../services/emailService';
 import User from '../models/User';
@@ -240,12 +241,12 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!paymentMethod || !['wallet', 'pay_later', 'bank_transfer'].includes(paymentMethod)) {
+    if (!paymentMethod || !['wallet', 'pay_later', 'bank_transfer', 'alat'].includes(paymentMethod)) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'Valid payment method (wallet, pay_later, bank_transfer) is required'
+        message: 'Valid payment method (wallet, pay_later, bank_transfer, alat) is required'
       });
     }
 
@@ -428,9 +429,9 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Generate payment reference for Paystack
+    // Generate payment reference for gateway payments
     let paymentReference;
-    if (paymentMethod === 'paystack') {
+    if (paymentMethod === 'paystack' || paymentMethod === 'alat') {
       paymentReference = `PAY-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
     }
 
@@ -678,6 +679,27 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
           handoverCode,
           paymentLink,
           expiresIn: '7 days'
+        }
+      });
+    }
+
+    // For alat, return config for frontend popup initialization
+    if (paymentMethod === 'alat') {
+      const { apiKey, businessId } = alatPayService.getPublicConfig();
+      return res.status(201).json({
+        success: true,
+        message: 'Order created successfully',
+        data: {
+          order,
+          handoverCode,
+          payment: {
+            apiKey,
+            businessId,
+            amount: order.totalAmount,
+            currency: 'NGN',
+            metadata: order.orderNumber,
+            reference: paymentReference
+          }
         }
       });
     }
@@ -1120,5 +1142,104 @@ export const cancelOrder = async (req: AuthRequest, res: Response) => {
       success: false,
       message: error.message || 'Failed to cancel order'
     });
+  }
+};
+
+export const verifyAlatPayment = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { transactionId, orderNumber } = req.body;
+
+    if (!transactionId || !orderNumber) {
+      return res.status(400).json({ success: false, message: 'transactionId and orderNumber are required' });
+    }
+
+    // Verify transaction with ALATPay API
+    const alatResponse = await alatPayService.verifyTransaction(transactionId);
+    const data = alatResponse?.data || alatResponse?.Data || alatResponse;
+
+    if (!data || data.Status !== 'completed') {
+      return res.status(400).json({ success: false, message: 'Payment not completed' });
+    }
+
+    const order = await Order.findOne({ orderNumber }).select('+handoverCodePlain');
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (order.user.toString() !== (req.user._id as mongoose.Types.ObjectId).toString()) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (order.paymentStatus === 'paid') {
+      await order.populate('items.product', 'name images');
+      return res.json({ success: true, message: 'Payment already verified', data: { order } });
+    }
+
+    order.paymentStatus = 'paid';
+    order.orderStatus = 'ready_for_processing';
+    order.currentStageOwnerRole = 'processing';
+    order.paymentReference = transactionId;
+    order.providerResponse = data;
+    order.addStatusHistory({
+      status: 'ready_for_processing',
+      note: 'ALATPay payment verified',
+      role: 'system',
+      updatedByName: 'System'
+    });
+    await order.save();
+
+    await order.populate('items.product', 'name images');
+    await order.populate('user', 'firstName lastName email');
+
+    websocketService.broadcastOrderStatusChanged(
+      (order._id as mongoose.Types.ObjectId).toString(),
+      'pending_payment',
+      'ready_for_processing',
+      order
+    );
+
+    const user = await User.findById(order.user);
+    if (user) {
+      const handoverCode = order.handoverCodePlain;
+      const orderItems = order.items.map((item: any) => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.totalPrice
+      }));
+      const deliveryAddress = `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`;
+
+      await emailService.sendOrderConfirmationEmail(user.email, {
+        orderNumber: order.orderNumber,
+        customerName: `${user.firstName} ${user.lastName}`,
+        items: orderItems,
+        subtotal: order.subtotal,
+        deliveryFee: order.deliveryFee,
+        tax: order.tax,
+        totalAmount: order.totalAmount,
+        deliveryAddress,
+        paymentMethod: 'ALATPay',
+        handoverCode
+      });
+
+      await emailService.sendNewOrderNotificationEmail({
+        orderNumber: order.orderNumber,
+        customerName: `${user.firstName} ${user.lastName}`,
+        customerEmail: user.email,
+        totalAmount: order.totalAmount,
+        deliveryAddress,
+        items: orderItems
+      });
+    }
+
+    console.log(`ALATPay payment verified for order ${orderNumber}`);
+    return res.json({ success: true, message: 'Payment verified successfully', data: { order } });
+
+  } catch (error: any) {
+    console.error('ALATPay verify error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to verify payment' });
   }
 };

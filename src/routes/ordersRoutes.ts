@@ -7,7 +7,8 @@ import {
   getOrderByNumber,
   cancelOrder,
   paystackWebhook,
-  verifyPayment
+  verifyPayment,
+  verifyAlatPayment
 } from '../controllers/orderController';
 import { authenticateToken, optionalAuth, requireAdmin } from '../middleware/auth';
 
@@ -33,6 +34,9 @@ router.post('/:id/cancel', authenticateToken, requireAdmin, cancelOrder);
 
 // Paystack webhook (no auth - verified by signature)
 router.post('/paystack/webhook', paystackWebhook);
+
+// ALATPay payment verification (requires authentication)
+router.post('/alat/verify', authenticateToken, verifyAlatPayment);
 
 // Verify payment manually (requires authentication)
 router.get('/paystack/verify/:reference', authenticateToken, verifyPayment);
