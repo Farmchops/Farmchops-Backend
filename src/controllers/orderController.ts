@@ -693,6 +693,13 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
 
     // For alat, return config for frontend popup initialization
     if (paymentMethod === 'alat') {
+      // Calculate ALAT fee (1.2% + ₦50, capped at ₦2,000) and add to customer charge
+      const alatFee = Math.min(Math.ceil(order.totalAmount * 0.012) + 50, 2000);
+      const alatChargeAmount = order.totalAmount + alatFee;
+
+      order.totalAmount = alatChargeAmount;
+      await order.save();
+
       const { apiKey, businessId } = alatPayService.getPublicConfig();
       return res.status(201).json({
         success: true,
@@ -703,7 +710,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
           payment: {
             apiKey,
             businessId,
-            amount: order.totalAmount,
+            amount: alatChargeAmount,
             currency: 'NGN',
             metadata: order.orderNumber,
             reference: paymentReference
