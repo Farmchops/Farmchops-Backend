@@ -20,7 +20,6 @@ export const orderConfirmationTemplate = (orderData: any) => {
   const supportEmail = resolveSupportEmail();
   const customerName = orderData.customerName || 'there';
   const readablePaymentMethod = toTitleCase((orderData.paymentMethod || 'wallet').toString().replace(/_/g, ' '));
-  const hasHandoverCode = Boolean(orderData.handoverCode);
 
   const itemsList = (orderData.items || [])
     .map((item: any) => `- ${item.productName} x${item.quantity}: ${formatAmount(item.price)}`)
@@ -41,7 +40,7 @@ Total: ${formatAmount(orderData.totalAmount)}
 Payment Method: ${readablePaymentMethod}
 Delivery Address: ${orderData.deliveryAddress || 'Abuja, Nigeria'}
 
-${hasHandoverCode ? `Delivery Code: ${orderData.handoverCode}\nPlease share this code with the rider when your order arrives.\n\n` : ''}Need help? Contact ${supportEmail}.
+Need help? Contact ${supportEmail}.
 
 Thank you for choosing Farmchops
   `;
@@ -74,10 +73,7 @@ Thank you for choosing Farmchops
     .summary-row { display:flex; justify-content:space-between; padding:8px 0; font-size:14px; }
     .total-row { font-size:16px; font-weight:700; border-top:1px solid #e8e8e8; padding-top:12px; margin-top:8px; }
     .delivery-card { border:1px solid #e7f4ea; background:#f6fff8; border-radius:10px; padding:16px; line-height:1.6; }
-    .code-block { background:#fff7e6; border:1px solid #ffc166; border-radius:10px; padding:20px; text-align:center; margin-top:16px; }
-    .code-value { font-size:28px; font-weight:700; letter-spacing:6px; margin:12px 0; color:#b26b00; }
-    .code-note { font-size:13px; color:#8a5b00; }
-    .help-text { font-size:13px; color:#666; margin-top:24px; }
+.help-text { font-size:13px; color:#666; margin-top:24px; }
     .help-text a { color:#28a745; text-decoration:none; }
     .signoff { margin-top:30px; font-size:14px; color:#777; }
     .signoff span { color:#28a745; font-weight:700; }
@@ -120,15 +116,6 @@ Thank you for choosing Farmchops
         </div>
       </div>
 
-      ${hasHandoverCode ? `
-      <div class="section">
-        <div class="section-title">Your Rider Code</div>
-        <div class="code-block">
-          <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#b26b00;">Share this code only with the Farmchops rider</div>
-          <div class="code-value">${orderData.handoverCode}</div>
-          <div class="code-note">Use this to confirm delivery. Keep it handy and do not share it until your rider arrives.</div>
-        </div>
-      </div>` : ''}
 
       <p class="help-text">Questions? Reply to this email or contact <a href="mailto:${supportEmail}">${supportEmail}</a>.</p>
       <p class="signoff">Thank you for choosing <span>Farmchops</span>.</p>
