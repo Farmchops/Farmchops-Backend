@@ -39,9 +39,11 @@ import addressRoutes from './routes/addressRoutes';
 import contactRoutes from './routes/contactRoutes';
 import marketerRoutes from './routes/marketerRoutes';
 import discountRoutes from './routes/discountRoutes';
+import reviewRoutes from './routes/reviewRoutes';
 import shippingRoutes from './routes/shippingRoutes';
 import userRoutes from './routes/userRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
+import { startReviewReminderJob } from './jobs/reviewReminderJob';
 import websocketService from './services/websocketService';
 // import placesRoutes from './routes/placesRoutes';
 
@@ -163,6 +165,7 @@ app.use('/api/addresses', addressRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/coupons', discountRoutes);
 app.use('/api/shipping', shippingRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Admin routes (specific paths BEFORE general /api/admin)
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -282,6 +285,7 @@ async function startServer() {
     // Start cron jobs for group orders
     startGroupOrderExpiryJob();
     startCheckoutWindowExpiryJob();
+    startReviewReminderJob();
 
     // Start Express server
     const server = app.listen(PORT, '0.0.0.0', () => {

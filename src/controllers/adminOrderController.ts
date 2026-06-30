@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User from '../models/User';
 import { Order, IOrder } from '../models/Order';
+import { Review } from '../models/Review';
 import { AuthRequest } from '../middleware/auth';
 import { performAction, OrderWorkflowError, WorkflowAction, getAvailableActions, getWorkflowConfig } from '../services/orderWorkflowService';
 import websocketService from '../services/websocketService';
@@ -262,7 +264,92 @@ export const confirmOrderDelivery = createActionHandler('confirm-delivery');
 export const failOrderDelivery = createActionHandler('fail-delivery');
 export const returnOrderToDispatch = createActionHandler('return-to-dispatch');
 export const cancelOrder = createActionHandler('cancel-order');
-export const closeOrder = createActionHandler('close-order');
+
+export const closeOrder = async (req: AuthRequest, res: Response): Promise<Response> => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { id } = req.params as { id: string };
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid order ID' });
+    }
+
+    const result = await performAction({
+      orderId: id,
+      action: 'close-order',
+      user: req.user,
+      payload: req.body || {}
+    });
+
+    await populateOrder(result.order);
+
+    websocketService.broadcastOrderStatusChanged(
+      (result.order._id as mongoose.Types.ObjectId).toString(),
+      result.previousStatus,
+      result.order.orderStatus,
+      result.order
+    );
+
+    const availableActions = getAvailableActions(result.order, req.user);
+
+    // Fire review request email — errors here must not fail the response
+    try {
+      const buyer = result.order.user as any;
+      if (buyer?.email) {
+        const token = crypto.randomUUID();
+        const tokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+        await Review.create({
+          orderId: result.order._id,
+          buyerId: buyer._id,
+          token,
+          tokenExpiresAt,
+        });
+
+        const frontendUrl = process.env.FRONTEND_URL || 'https://farmchops.com';
+        const reviewUrl = `${frontendUrl}/review?token=${token}`;
+        const customerName = (buyer.firstName as string || '').trim() || 'there';
+
+        await emailService.sendOrderReviewRequestEmail(buyer.email, {
+          customerName,
+          orderNumber: result.order.orderNumber,
+          reviewUrl,
+        });
+      }
+    } catch (reviewErr) {
+      console.error('Failed to send review request for order', result.order.orderNumber, reviewErr);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Order updated successfully',
+      data: {
+        order: result.order,
+        transition: {
+          from: result.previousStatus,
+          to: result.order.orderStatus,
+          action: result.action
+        },
+        availableActions
+      }
+    });
+  } catch (error) {
+    if (error instanceof OrderWorkflowError) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message,
+        code: error.code,
+        details: error.details
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Server error'
+    });
+  }
+};
 
 export const getOrderAvailableActions = async (req: AuthRequest, res: Response): Promise<Response> => {
   try {

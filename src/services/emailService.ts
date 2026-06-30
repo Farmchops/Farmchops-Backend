@@ -10,6 +10,7 @@ import { waitlistPromotionTemplate } from '../templates/emails/waitlistPromotion
 import { contactSupportTemplate, contactConfirmationTemplate } from '../templates/emails/contactNotification';
 import { marketerWelcomeTemplate } from '../templates/emails/marketerWelcome';
 import { newOrderNotificationTemplate } from '../templates/emails/newOrderNotification';
+import { orderReviewTemplate } from '../templates/emails/orderReview';
 
 const NOTIFY_EMAILS = ['admin@farmchops.com', 'mercyemmanuel@farmchops.com'];
 
@@ -224,6 +225,25 @@ class EmailService {
       return true;
     } catch (error) {
       console.error('Error sending new order notification email:', error);
+      return false;
+    }
+  }
+
+  async sendOrderReviewRequestEmail(email: string, data: {
+    customerName: string;
+    orderNumber: string;
+    reviewUrl: string;
+  }): Promise<boolean> {
+    try {
+      const t = orderReviewTemplate(data);
+      const info = await this.getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || `"Farmchops" <${process.env.EMAIL_USER}>`,
+        to: email, subject: t.subject, text: t.text, html: t.html
+      });
+      console.log('Order review request email sent:', info.messageId);
+      return true;
+    } catch (error) {
+      console.error('Error sending order review request email:', error);
       return false;
     }
   }
