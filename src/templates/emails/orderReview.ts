@@ -24,6 +24,20 @@ Questions? Contact us at ${supportEmail}.
 Thank you for choosing Farmchops!
   `;
 
+  const ratings = [
+    { emoji: '😞', label: 'Terrible', value: 1 },
+    { emoji: '😕', label: 'Bad',      value: 2 },
+    { emoji: '😐', label: 'Okay',     value: 3 },
+    { emoji: '😊', label: 'Good',     value: 4 },
+    { emoji: '🤩', label: 'Amazing',  value: 5 },
+  ];
+
+  const emojiButtons = ratings.map(r => `
+    <a href="${reviewUrl}&rating=${r.value}" style="text-decoration:none;display:inline-block;margin:0 8px;text-align:center;">
+      <div style="font-size:36px;line-height:1;">${r.emoji}</div>
+      <div style="font-size:12px;color:#555;margin-top:6px;font-family:Arial,sans-serif;">${r.label}</div>
+    </a>`).join('');
+
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -37,7 +51,6 @@ Thank you for choosing Farmchops!
     .logo { font-size:26px; font-weight:700; letter-spacing:0.5px; }
     .tag { margin-top:8px; display:inline-block; padding:6px 16px; border-radius:999px; border:1px solid rgba(255,255,255,0.6); font-size:13px; text-transform:uppercase; letter-spacing:1px; }
     .content { padding:32px; }
-    .cta-btn { display:inline-block; background:#28a745; color:#fff !important; text-decoration:none; padding:14px 36px; border-radius:8px; font-size:16px; font-weight:700; margin:24px 0; }
     .help-text { font-size:13px; color:#666; margin-top:24px; }
     .help-text a { color:#28a745; text-decoration:none; }
     .signoff { margin-top:30px; font-size:14px; color:#777; }
@@ -55,13 +68,10 @@ Thank you for choosing Farmchops!
       <p style="color:#666;line-height:1.6;">
         Thank you for your order <strong>${orderNumber}</strong>! We hope everything arrived fresh and exactly as expected.
       </p>
-      <p style="color:#666;line-height:1.6;">
-        We'd love to hear what you think. Your review helps us keep our quality high and helps other shoppers make great choices.
-      </p>
+      <p style="color:#666;line-height:1.6;">How would you rate your experience?</p>
       <div style="text-align:center;margin:32px 0;">
-        <p style="font-size:24px;margin:0 0 16px;">⭐⭐⭐⭐⭐</p>
-        <a href="${reviewUrl}" class="cta-btn">Leave a Review</a>
-        <p style="font-size:12px;color:#999;margin-top:12px;">This link is valid for 30 days.</p>
+        ${emojiButtons}
+        <p style="font-size:12px;color:#999;margin-top:20px;">Tap an emoji to leave your review. This link is valid for 30 days.</p>
       </div>
       <p class="help-text">Questions? Contact us at <a href="mailto:${supportEmail}">${supportEmail}</a>.</p>
       <p class="signoff">Thank you for choosing <span>Farmchops</span>.</p>
