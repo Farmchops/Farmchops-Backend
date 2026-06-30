@@ -241,12 +241,12 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!paymentMethod || !['wallet', 'pay_later', 'bank_transfer', 'alat'].includes(paymentMethod)) {
+    if (!paymentMethod || !['wallet', 'pay_later', 'bank_transfer', 'alat', 'paystack'].includes(paymentMethod)) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'Valid payment method (wallet, pay_later, bank_transfer, alat) is required'
+        message: 'Valid payment method (wallet, pay_later, bank_transfer, alat, paystack) is required'
       });
     }
 
@@ -569,9 +569,17 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // If payment method is Paystack, initialize payment
     if (paymentMethod === 'paystack' && user) {
       try {
+        // Calculate Paystack fee (1.5% + ₦100, capped at ₦2,000) and add to customer charge
+        const paystackFee = Math.min(Math.ceil(order.totalAmount * 0.015) + 100, 2000);
+        const chargeAmount = order.totalAmount + paystackFee;
+
+        // Update order total to include fee so records reflect what customer paid
+        order.totalAmount = chargeAmount;
+        await order.save();
+
         const paystackResponse = await paystackService.initializeTransaction(
           user.email,
-          Math.round(order.totalAmount * 100), // Convert Naira to kobo for Paystack
+          Math.round(chargeAmount * 100), // Convert Naira to kobo for Paystack
           paymentReference!,
           {
             orderId: (order._id as mongoose.Types.ObjectId).toString(),

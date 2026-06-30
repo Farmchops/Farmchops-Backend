@@ -165,7 +165,7 @@ export interface IOrderModel extends Model<IOrder> {
             country?: string;
             postalCode?: string;
         };
-        paymentMethod: 'wallet' | 'pay_later' | 'paystack';
+        paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer' | 'alat';
         deliveryFee?: number;
         payementReference?: string;
         subtotalBeforeDiscount?: number;
