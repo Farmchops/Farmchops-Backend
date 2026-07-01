@@ -604,13 +604,13 @@ OrderSchema.index({ couponUsed: 1 }); // Coupon usage reports
 
 
 OrderSchema.virtual('totalItems').get(function(this: IOrder) {
-    return this.items.reduce((total, item) => total + item.quantity, 0)
+    return (this.items ?? []).reduce((total, item) => total + item.quantity, 0)
 });
 
 OrderSchema.virtual('summary').get(function(this: IOrder) {
     return {
         totalItems: this.totalItems,
-        ItemCount: this.items.length,
+        ItemCount: (this.items ?? []).length,
         totalAmountInNaira: this.totalAmount / 100,
         status: this.orderStatus,
         paymentStatus: this.paymentStatus
