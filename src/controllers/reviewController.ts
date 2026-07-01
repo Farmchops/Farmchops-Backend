@@ -99,6 +99,7 @@ export const listReviews = async (req: AuthRequest, res: Response): Promise<Resp
       data: { reviews, total, page: Number(page), pageSize: Number(limit) },
     });
   } catch (error) {
+    console.error('[REVIEWS] listReviews error:', error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
