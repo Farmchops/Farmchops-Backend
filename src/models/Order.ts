@@ -722,8 +722,19 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             throw new Error(`Product not found: ${item.productId}`);
         }
 
-        if (!product.canFulfillOrder(item.quantity, item.priceType)) {
+        if (product.status !== 'active') {
+            throw new Error(`${product.name} is currently unavailable`);
+        }
+
+        if (product.inventory.availableStock < item.quantity) {
             throw new Error(`Insufficient stock for ${product.name}`);
+        }
+
+        const _minQty = item.priceType === 'retail'
+            ? product.pricing?.retail?.minQuantity ?? 1
+            : product.pricing?.bulkTiers?.[0]?.minQuantity ?? 0;
+        if (item.quantity < _minQty) {
+            throw new Error(`Minimum order for ${product.name} is ${_minQty} ${product.inventory.unit}`);
         }
 
         if (!product.pricing) {
