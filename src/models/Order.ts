@@ -937,10 +937,12 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
             createdRedemptionIds = insertedRedemptions.map((doc) => doc._id as mongoose.Types.ObjectId);
         }
 
-        for (const item of data.items) {
-            const product = session ? await Product.findById(item.productId).session(session) : await Product.findById(item.productId);
-            if (product) {
-                await product.updateStock(item.quantity, 'decrease');
+        if (['wallet', 'pay_later'].includes(data.paymentMethod)) {
+            for (const item of data.items) {
+                const product = session ? await Product.findById(item.productId).session(session) : await Product.findById(item.productId);
+                if (product) {
+                    await product.updateStock(item.quantity, 'decrease');
+                }
             }
         }
 
@@ -1035,12 +1037,16 @@ OrderSchema.methods.cancelOrder = async function(reason?: string) {
         updatedByName: 'System'
     });
   
-  // Restore product stock
-  const Product = mongoose.model('Product');
-  for (const item of this.items) {
-    const product = await Product.findById(item.product);
-    if (product) {
-      await product.updateStock(item.quantity, 'increase');
+  // Restore stock only if it was actually deducted:
+  // wallet/pay_later deduct at order creation; all others deduct only when payment is confirmed
+  const stockWasDeducted = ['wallet', 'pay_later'].includes(this.paymentMethod) || this.paymentStatus === 'paid';
+  if (stockWasDeducted) {
+    const Product = mongoose.model('Product');
+    for (const item of this.items) {
+      const product = await Product.findById(item.product);
+      if (product) {
+        await product.updateStock(item.quantity, 'increase');
+      }
     }
   }
   

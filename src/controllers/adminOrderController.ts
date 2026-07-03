@@ -1150,6 +1150,13 @@ export const confirmBankTransferPayment = async (req: AuthRequest, res: Response
     });
     await order.save();
 
+    // Deduct stock now that payment is confirmed
+    const ProductModel = mongoose.model('Product');
+    for (const item of order.items) {
+      const product = await ProductModel.findById((item as any).product);
+      if (product) await (product as any).updateStock(item.quantity, 'decrease');
+    }
+
     const user = await User.findById(order.user);
     if (user) {
       const orderItems = order.items.map((item: any) => ({

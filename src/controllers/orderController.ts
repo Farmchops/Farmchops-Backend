@@ -848,6 +848,13 @@ export const paystackWebhook = async (req: Request, res: Response) => {
         order.providerResponse = event.data;
         await order.save();
 
+        // Deduct stock now that payment is confirmed
+        const ProductModel = mongoose.model('Product');
+        for (const item of order.items) {
+          const product = await ProductModel.findById((item as any).product);
+          if (product) await (product as any).updateStock(item.quantity, 'decrease');
+        }
+
         // Clear cart after successful webhook payment confirmation
         await clearCart({}, order.user);
 
@@ -1206,6 +1213,13 @@ export const verifyAlatPayment = async (req: AuthRequest, res: Response) => {
       updatedByName: 'System'
     });
     await order.save();
+
+    // Deduct stock now that payment is confirmed
+    const ProductModel = mongoose.model('Product');
+    for (const item of order.items) {
+      const product = await ProductModel.findById((item as any).product);
+      if (product) await (product as any).updateStock(item.quantity, 'decrease');
+    }
 
     await order.populate('items.product', 'name images');
     await order.populate('user', 'firstName lastName email');

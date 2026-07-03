@@ -359,6 +359,18 @@ export const performAction = async ({ orderId, action, payload = {}, user }: Per
       note = payload.note || 'Order cancelled';
       order.handoverCodeActive = false;
       order.assignedRider = undefined;
+
+      // Restore stock only if it was actually deducted (wallet/pay_later deduct at creation; others deduct at payment confirmation)
+      const stockWasDeducted = ['wallet', 'pay_later'].includes(order.paymentMethod) || order.paymentStatus === 'paid';
+      if (stockWasDeducted) {
+        const Product = mongoose.model('Product');
+        for (const item of order.items) {
+          const product = await Product.findById((item as any).product);
+          if (product) {
+            await (product as any).updateStock(item.quantity, 'increase');
+          }
+        }
+      }
       break;
     }
     case 'mark-processing': {
