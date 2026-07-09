@@ -28,7 +28,7 @@ export interface CustomerInfo {
 }
 
 export interface DiscountInfo {
-  type: 'first_time' | 'coupon' | 'marketer_promo';
+  type: 'coupon' | 'marketer_promo';
   code?: string;
   description: string;
   amount: number;

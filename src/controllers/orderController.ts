@@ -242,12 +242,12 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!paymentMethod || !['wallet', 'pay_later', 'bank_transfer', 'alat', 'paystack'].includes(paymentMethod)) {
+    if (!paymentMethod || !['wallet', 'pay_later', 'alat', 'paystack'].includes(paymentMethod)) {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'Valid payment method (wallet, pay_later, bank_transfer, alat, paystack) is required'
+        message: 'Valid payment method (wallet, pay_later, alat, paystack) is required'
       });
     }
 
@@ -473,17 +473,6 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         }
 
         await coupon.save({ session });
-      }
-    }
-
-    // Update user's first-time discount tracking if used
-    if (discountResult.bestDiscount?.type === 'first_time') {
-      const user = await User.findById(req.user._id).session(session);
-      if (user) {
-        user.hasUsedFirstTimeDiscount = true;
-        user.firstTimeDiscountUsedAt = new Date();
-        user.firstTimeDiscountOrderId = order._id as mongoose.Types.ObjectId;
-        await user.save({ session });
       }
     }
 
@@ -715,27 +704,6 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
             currency: 'NGN',
             metadata: order.orderNumber,
             reference: paymentReference
-          }
-        }
-      });
-    }
-
-    // For bank_transfer, return bank account details
-    if (paymentMethod === 'bank_transfer') {
-      return res.status(201).json({
-        success: true,
-        message: 'Order created successfully. Please transfer the exact amount to complete your order.',
-        data: {
-          order,
-          handoverCode,
-          payment: {
-            method: 'bank_transfer',
-            bankName: 'Wema Bank',
-            accountNumber: '0127214908',
-            accountName: 'Farmchops Ltd',
-            amount: order.totalAmount,
-            reference: order.orderNumber,
-            note: 'Use your order number as the transfer narration'
           }
         }
       });

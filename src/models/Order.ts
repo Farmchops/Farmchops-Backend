@@ -39,7 +39,7 @@ export interface OrderStatusHistoryEntry {
 }
 
 interface IDiscount {
-    type: 'first_time' | 'coupon' | 'marketer_promo';
+    type: 'coupon' | 'marketer_promo';
     code?: string;
     amount: number;
     description: string;
@@ -64,7 +64,7 @@ export interface IOrder extends Document {
     tax?: number;
     totalAmount: number;
 
-    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer' | 'alat'
+    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'alat'
     paymentStatus: 'pending' | 'paid' | 'failed';
     orderStatus: OrderStatus;
     currentStageOwnerRole: OrderStageOwner;
@@ -165,7 +165,7 @@ export interface IOrderModel extends Model<IOrder> {
             country?: string;
             postalCode?: string;
         };
-        paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer' | 'alat';
+        paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'alat';
         deliveryFee?: number;
         payementReference?: string;
         subtotalBeforeDiscount?: number;
@@ -227,7 +227,7 @@ const OrderItemSchema = new Schema({
 const DiscountSchema = new Schema({
     type: {
         type: String,
-        enum: ['first_time', 'coupon', 'marketer_promo'],
+        enum: ['coupon', 'marketer_promo'],
         required: true
     },
     code: {
@@ -313,7 +313,7 @@ const OrderSchema: Schema = new Schema({
 
     paymentMethod: {
         type: String,
-        enum: ['wallet', 'pay_later', 'paystack', 'bank_transfer', 'alat'],
+        enum: ['wallet', 'pay_later', 'paystack', 'alat'],
         required: [true, 'Payement method is required'],
     },
 
@@ -701,7 +701,7 @@ OrderSchema.statics.createIndividualOrder = async function(data: {
         country?: string;
         postalCode?: string;
     };
-    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'bank_transfer' | 'alat';
+    paymentMethod: 'wallet' | 'pay_later' | 'paystack' | 'alat';
     deliveryFee?: number;
     payementReference?: string;
     subtotalBeforeDiscount?: number;

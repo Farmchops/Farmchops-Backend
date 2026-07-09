@@ -34,11 +34,6 @@ export interface IUser extends Document {
   // First order tracking (for marketer commission - FIRST ORDER ONLY)
   hasPlacedFirstOrder: boolean;
 
-  // First-time discount tracking
-  hasUsedFirstTimeDiscount: boolean;
-  firstTimeDiscountUsedAt?: Date;
-  firstTimeDiscountOrderId?: mongoose.Types.ObjectId;
-
   createdAt: Date;
   updatedAt: Date;
 
@@ -177,23 +172,6 @@ const UserSchema = new Schema<IUser>({
   hasPlacedFirstOrder: {
     type: Boolean,
     default: false
-  },
-
-  // First-time discount tracking
-  hasUsedFirstTimeDiscount: {
-    type: Boolean,
-    default: false
-  },
-
-  firstTimeDiscountUsedAt: {
-    type: Date,
-    default: null
-  },
-
-  firstTimeDiscountOrderId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Order',
-    default: null
   }
 }, {
   timestamps: true,
@@ -208,7 +186,6 @@ UserSchema.index({ isActive: 1 });
 UserSchema.index({ createdAt: -1 });
 UserSchema.index({ referredBy: 1 });
 UserSchema.index({ hasPlacedFirstOrder: 1 });
-UserSchema.index({ hasUsedFirstTimeDiscount: 1 });
 
 const User = mongoose.model<IUser>("User", UserSchema);
 export default User;

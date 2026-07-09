@@ -26,8 +26,7 @@ import {
 	getAverageOrderValue,
 	getTopProducts,
 	downloadOrderInvoice,
-	downloadBulkInvoices,
-	confirmBankTransferPayment
+	downloadBulkInvoices
 } from '../controllers/adminOrderController';
 import { authenticateToken, requireAdmin, requirePermission } from '../middleware/auth';
 import { PERMISSIONS } from '../utils/permissions';
@@ -54,7 +53,6 @@ router.patch('/orders/:id/actions/fail-delivery', requirePermission(PERMISSIONS.
 router.patch('/orders/:id/actions/return-to-dispatch', requirePermission(PERMISSIONS.ORDERS_DISPATCH_RETURN), returnOrderToDispatch);
 router.patch('/orders/:id/actions/cancel', requirePermission(PERMISSIONS.ORDERS_OVERRIDE_CANCEL), cancelOrder);
 router.patch('/orders/:id/actions/close', requirePermission(PERMISSIONS.ORDERS_DELIVERY_CLOSE), closeOrder);
-router.patch('/orders/:id/actions/confirm-bank-payment', requirePermission(PERMISSIONS.ORDERS_PROCESSING_START), confirmBankTransferPayment);
 
 //dashboard routes
 router.get('/dashboard/summary', getDashboardSummary);
