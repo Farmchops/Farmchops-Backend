@@ -88,6 +88,17 @@ export const addToCart = async (req: AuthRequest, res: Response): Promise<Respon
       });
     }
 
+    const serverMinQty = priceType === 'bulk'
+      ? product.pricing?.bulkTiers?.[0]?.minQuantity ?? 1
+      : product.pricing?.retail?.minQuantity ?? 1;
+
+    if (quantity < serverMinQty || quantity % serverMinQty !== 0) {
+      return res.status(400).json({
+        success: false,
+        message: `${product.name} must be ordered in multiples of ${serverMinQty} ${product.inventory.unit}`,
+      });
+    }
+
     if (quantity > product.inventory.availableStock) {
       return res.status(400).json({
         success: false,

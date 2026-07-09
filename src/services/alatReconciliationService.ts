@@ -9,7 +9,16 @@ import alatPayService from '../config/alatpay';
 const LOOKBACK_HOURS = 48;
 
 export const confirmAlatOrderPayment = async (order: IOrder, transactionId: string, providerData: any) => {
-  if (order.paymentStatus === 'paid') {
+  // Atomic check-and-mark: only one concurrent request can win this update.
+  // If another request already set paymentStatus to 'paid', findOneAndUpdate
+  // returns null and we bail out — preventing double stock deduction.
+  const claimed = await Order.findOneAndUpdate(
+    { _id: (order._id as mongoose.Types.ObjectId), paymentStatus: { $ne: 'paid' } },
+    { $set: { paymentStatus: 'paid' } },
+    { new: false }
+  );
+
+  if (!claimed) {
     return order;
   }
 
