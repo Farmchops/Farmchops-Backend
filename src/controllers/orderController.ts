@@ -1184,7 +1184,7 @@ export const verifyAlatPayment = async (req: AuthRequest, res: Response) => {
     const alatResponse = await alatPayService.verifyTransaction(transactionId);
     const data = alatResponse?.data || alatResponse?.Data || alatResponse;
 
-    if (!data || data.Status !== 'completed') {
+    if (!data || String(data.status || data.Status).toLowerCase() !== 'completed') {
       return res.status(400).json({ success: false, message: 'Payment not completed' });
     }
 

@@ -87,7 +87,6 @@ export const reconcilePendingAlatOrders = async () => {
     paymentMethod: 'alat',
     paymentStatus: 'pending',
     orderStatus: 'pending_payment',
-    paymentReference: { $exists: true, $ne: null },
     createdAt: { $gte: lookbackCutoff }
   }).select('+handoverCodePlain');
 
@@ -95,7 +94,8 @@ export const reconcilePendingAlatOrders = async () => {
     return { checked: 0, reconciled: 0 };
   }
 
-  const byReference = new Map(pendingOrders.map((o) => [o.paymentReference, o]));
+  // ALAT's transaction record carries our order number back in customer.metadata
+  // (set at checkout init); its own `orderId` is an internal ALAT UUID unrelated to us.
   const byOrderNumber = new Map(pendingOrders.map((o) => [o.orderNumber, o]));
 
   const startAt = lookbackCutoff.toISOString();
@@ -115,13 +115,8 @@ export const reconcilePendingAlatOrders = async () => {
       const status = String(txn.status || txn.Status || '').toLowerCase();
       if (status !== 'completed') continue;
 
-      const reference = txn.orderId;
-      const metadata = txn.customer?.metadata;
-      const order =
-        byReference.get(reference) ||
-        byOrderNumber.get(metadata) ||
-        byOrderNumber.get(reference) ||
-        byReference.get(metadata);
+      const orderNumber = txn.customer?.metadata;
+      const order = byOrderNumber.get(orderNumber);
 
       if (order && !reconciled.has(order.orderNumber)) {
         const transactionId = txn.customer?.transactionId || txn.id;
