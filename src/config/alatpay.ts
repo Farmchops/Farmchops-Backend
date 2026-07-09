@@ -42,6 +42,25 @@ class AlatPayService {
     }
   }
 
+  async listTransactions(params: { page?: number; limit?: number; status?: string; startAt?: string; endAt?: string }) {
+    try {
+      const response = await this.api.get('/alatpaytransaction/api/v1/transactions', {
+        params: {
+          BusinessId: this.businessId,
+          Page: params.page ?? 1,
+          Limit: params.limit ?? 50,
+          Status: params.status,
+          StartAt: params.startAt,
+          EndAt: params.endAt,
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('ALATPay list transactions error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || 'Failed to list ALATPay transactions');
+    }
+  }
+
   verifyWebhookSignature(signature: string, body: string): boolean {
     const computed = crypto
       .createHmac('sha256', this.webhookSecret)

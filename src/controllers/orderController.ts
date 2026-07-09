@@ -18,6 +18,7 @@ import websocketService from '../services/websocketService';
 import { calculateOrderDiscounts } from '../services/discountService';
 import Coupon from '../models/Coupon';
 import Marketer from '../models/Marketer';
+import { confirmAlatOrderPayment } from '../services/alatReconciliationService';
 
 // Abuja delivery zones (fees in Naira)
 const FREE_THRESHOLD = 500000; // free delivery if subtotal >= ₦500,000
@@ -1201,68 +1202,7 @@ export const verifyAlatPayment = async (req: AuthRequest, res: Response) => {
       return res.json({ success: true, message: 'Payment already verified', data: { order } });
     }
 
-    order.paymentStatus = 'paid';
-    order.orderStatus = 'ready_for_processing';
-    order.currentStageOwnerRole = 'processing';
-    order.paymentReference = transactionId;
-    order.providerResponse = data;
-    order.addStatusHistory({
-      status: 'ready_for_processing',
-      note: 'ALATPay payment verified',
-      role: 'system',
-      updatedByName: 'System'
-    });
-    await order.save();
-
-    // Deduct stock now that payment is confirmed
-    const ProductModel = mongoose.model('Product');
-    for (const item of order.items) {
-      const product = await ProductModel.findById((item as any).product);
-      if (product) await (product as any).updateStock(item.quantity, 'decrease');
-    }
-
-    await order.populate('items.product', 'name images');
-    await order.populate('user', 'firstName lastName email');
-
-    websocketService.broadcastOrderStatusChanged(
-      (order._id as mongoose.Types.ObjectId).toString(),
-      'pending_payment',
-      'ready_for_processing',
-      order
-    );
-
-    const user = await User.findById(order.user);
-    if (user) {
-      const handoverCode = order.handoverCodePlain;
-      const orderItems = order.items.map((item: any) => ({
-        productName: item.productName,
-        quantity: item.quantity,
-        price: item.totalPrice
-      }));
-      const deliveryAddress = `${order.deliveryInfo.address}, ${order.deliveryInfo.city}, ${order.deliveryInfo.state}`;
-
-      await emailService.sendOrderConfirmationEmail(user.email, {
-        orderNumber: order.orderNumber,
-        customerName: `${user.firstName} ${user.lastName}`,
-        items: orderItems,
-        subtotal: order.subtotal,
-        deliveryFee: order.deliveryFee,
-        tax: order.tax,
-        totalAmount: order.totalAmount,
-        deliveryAddress,
-        paymentMethod: 'ALATPay',
-        handoverCode
-      });
-
-      await emailService.sendNewOrderNotificationEmail({
-        orderNumber: order.orderNumber,
-        customerName: `${user.firstName} ${user.lastName}`,
-        customerEmail: user.email,
-        totalAmount: order.totalAmount,
-        deliveryAddress,
-        items: orderItems
-      });
-    }
+    await confirmAlatOrderPayment(order, transactionId, data);
 
     console.log(`ALATPay payment verified for order ${orderNumber}`);
     return res.json({ success: true, message: 'Payment verified successfully', data: { order } });

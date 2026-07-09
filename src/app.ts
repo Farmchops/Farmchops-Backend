@@ -44,6 +44,7 @@ import shippingRoutes from './routes/shippingRoutes';
 import userRoutes from './routes/userRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
 import { startReviewReminderJob } from './jobs/reviewReminderJob';
+import { startAlatReconciliationJob } from './jobs/alatReconciliationJob';
 import websocketService from './services/websocketService';
 // import placesRoutes from './routes/placesRoutes';
 
@@ -286,6 +287,7 @@ async function startServer() {
     startGroupOrderExpiryJob();
     startCheckoutWindowExpiryJob();
     startReviewReminderJob();
+    startAlatReconciliationJob();
 
     // Start Express server
     const server = app.listen(PORT, '0.0.0.0', () => {
