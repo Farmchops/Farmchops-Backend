@@ -11,6 +11,7 @@ import { contactSupportTemplate, contactConfirmationTemplate } from '../template
 import { marketerWelcomeTemplate } from '../templates/emails/marketerWelcome';
 import { newOrderNotificationTemplate } from '../templates/emails/newOrderNotification';
 import { orderReviewTemplate } from '../templates/emails/orderReview';
+import { paylaterApprovedTemplate, paylaterRejectedTemplate } from '../templates/emails/paylaterApplication';
 
 const NOTIFY_EMAILS = ['admin@farmchops.com', 'mercyemmanuel@farmchops.com'];
 
@@ -225,6 +226,44 @@ class EmailService {
       return true;
     } catch (error) {
       console.error('Error sending new order notification email:', error);
+      return false;
+    }
+  }
+
+  async sendPaylaterApprovedEmail(email: string, data: {
+    firstName: string;
+    lastName: string;
+    creditLimit: number;
+  }): Promise<boolean> {
+    try {
+      const t = paylaterApprovedTemplate(data);
+      const info = await this.getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || `"Farmchops" <${process.env.EMAIL_USER}>`,
+        to: email, subject: t.subject, text: t.text, html: t.html
+      });
+      console.log('PayLater approval email sent:', info.messageId);
+      return true;
+    } catch (error) {
+      console.error('Error sending PayLater approval email:', error);
+      return false;
+    }
+  }
+
+  async sendPaylaterRejectedEmail(email: string, data: {
+    firstName: string;
+    lastName: string;
+    rejectionReason: string;
+  }): Promise<boolean> {
+    try {
+      const t = paylaterRejectedTemplate(data);
+      const info = await this.getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || `"Farmchops" <${process.env.EMAIL_USER}>`,
+        to: email, subject: t.subject, text: t.text, html: t.html
+      });
+      console.log('PayLater rejection email sent:', info.messageId);
+      return true;
+    } catch (error) {
+      console.error('Error sending PayLater rejection email:', error);
       return false;
     }
   }

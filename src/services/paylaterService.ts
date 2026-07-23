@@ -8,6 +8,8 @@ import {
   IPayLaterCartItem
 } from '../models/PayLater';
 import { Product } from '../models/Product';
+import User from '../models/User';
+import emailService from './emailService';
 
 // Default settings
 const DEFAULT_SETTINGS = {
@@ -307,6 +309,35 @@ class PayLaterService {
 
     // Clear cart
     await this.clearCart(userId);
+
+    // Send order confirmation email (best-effort, don't fail checkout if email fails)
+    const user = await User.findById(userId);
+    if (user) {
+      const deliveryAddressText = `${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state}`;
+      const orderItems = order.items.map(item => ({
+        productName: item.name,
+        quantity: item.quantity,
+        price: item.paylaterPrice * item.quantity
+      }));
+      emailService.sendOrderConfirmationEmail(user.email, {
+        orderNumber: order.orderNumber,
+        customerName: `${user.firstName} ${user.lastName}`,
+        items: orderItems,
+        subtotal: order.subtotal,
+        deliveryFee: order.deliveryFee,
+        totalAmount: order.totalAmount,
+        deliveryAddress: deliveryAddressText,
+        paymentMethod: 'pay later'
+      }).catch(err => console.error('Failed to send PayLater order confirmation email:', err));
+      emailService.sendNewOrderNotificationEmail({
+        orderNumber: order.orderNumber,
+        customerName: `${user.firstName} ${user.lastName}`,
+        customerEmail: user.email,
+        totalAmount: order.totalAmount,
+        deliveryAddress: deliveryAddressText,
+        items: orderItems
+      }).catch(err => console.error('Failed to send PayLater new order notification email:', err));
+    }
 
     return { order, account };
   }

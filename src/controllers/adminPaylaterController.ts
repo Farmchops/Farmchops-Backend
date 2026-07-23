@@ -7,6 +7,7 @@ import {
   PayLaterSettings
 } from '../models/PayLater';
 import paylaterService from '../services/paylaterService';
+import emailService from '../services/emailService';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -160,6 +161,13 @@ export const reviewApplication = async (req: AuthRequest, res: Response): Promis
         status: 'active'
       });
 
+      // Notify applicant (best-effort, don't fail approval if email fails)
+      emailService.sendPaylaterApprovedEmail(application.email, {
+        firstName: application.firstName,
+        lastName: application.lastName,
+        creditLimit
+      }).catch(err => console.error('Failed to send PayLater approval email:', err));
+
       return res.json({
         success: true,
         message: 'Application approved successfully',
@@ -174,11 +182,19 @@ export const reviewApplication = async (req: AuthRequest, res: Response): Promis
       });
     } else {
       // Reject
+      const finalRejectionReason = rejectionReason || 'Application rejected';
       application.status = 'rejected';
-      application.rejectionReason = rejectionReason || 'Application rejected';
+      application.rejectionReason = finalRejectionReason;
       application.reviewedBy = req.user._id;
       application.reviewedAt = new Date();
       await application.save();
+
+      // Notify applicant (best-effort, don't fail rejection if email fails)
+      emailService.sendPaylaterRejectedEmail(application.email, {
+        firstName: application.firstName,
+        lastName: application.lastName,
+        rejectionReason: finalRejectionReason
+      }).catch(err => console.error('Failed to send PayLater rejection email:', err));
 
       return res.json({
         success: true,
