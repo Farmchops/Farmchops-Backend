@@ -45,6 +45,7 @@ import userRoutes from './routes/userRoutes';
 import { startGroupOrderExpiryJob, startCheckoutWindowExpiryJob } from './jobs/groupOrderJobs';
 import { startReviewReminderJob } from './jobs/reviewReminderJob';
 import { startAlatReconciliationJob } from './jobs/alatReconciliationJob';
+import { startPaystackReconciliationJob } from './jobs/paystackReconciliationJob';
 import websocketService from './services/websocketService';
 // import placesRoutes from './routes/placesRoutes';
 
@@ -126,7 +127,16 @@ app.use(helmet({
 }));
 
 app.use(morgan('combined'));
-app.use(express.json({ limit: '10mb' }));
+// Capture the raw request body alongside the parsed one so webhook handlers
+// (Paystack) can verify HMAC signatures against the exact bytes that were signed —
+// re-serializing req.body with JSON.stringify does not reliably reproduce the
+// original payload and causes signature verification to fail unpredictably.
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Session middleware - AFTER CORS
@@ -288,6 +298,7 @@ async function startServer() {
     startCheckoutWindowExpiryJob();
     startReviewReminderJob();
     startAlatReconciliationJob();
+    startPaystackReconciliationJob();
 
     // Start Express server
     const server = app.listen(PORT, '0.0.0.0', () => {

@@ -264,7 +264,7 @@ export const groupOrderPaystackWebhook = async (req: AuthRequest, res: Response)
     // Verify webhook signature
     const hash = crypto
       .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY || '')
-      .update(JSON.stringify(req.body))
+      .update(req.rawBody || JSON.stringify(req.body))
       .digest('hex');
 
     if (hash !== req.headers['x-paystack-signature']) {

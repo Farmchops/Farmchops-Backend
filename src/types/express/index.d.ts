@@ -6,6 +6,7 @@ import { ICartItem } from '../../models/Cart';
 declare module 'express-serve-static-core' {
   interface Request {
     user?: IUser;
+    rawBody?: Buffer;
     session?: {
       cart?: {
         items: ICartItem[];
