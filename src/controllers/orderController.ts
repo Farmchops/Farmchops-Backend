@@ -71,9 +71,19 @@ const DELIVERY_ZONES: ZoneConfig[] = [
 
 const PICKUP_KEYWORDS = ['jabi', 'i.t. igbani', 'it igbani', 'igbani', 'farmchops pickup', 'pickup', 'self pickup', 'self-pickup'];
 
+const PICKUP_LOCATION = {
+  address: 'FarmChops Self Pickup, Jabi',
+  city: 'Abuja',
+  state: 'FCT'
+};
+
 function isPickupAddress(address: string): boolean {
   const lower = address.toLowerCase();
   return PICKUP_KEYWORDS.some(k => lower.includes(k));
+}
+
+function isPickupOrder(address?: string, area?: string): boolean {
+  return Boolean((area && isPickupAddress(area)) || (address && isPickupAddress(address)));
 }
 
 function detectDeliveryZone(address: string): ZoneConfig | null {
@@ -93,7 +103,10 @@ function calculateZoneFee(subtotal: number, zone: ZoneConfig): number {
 
 export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, CheckoutRequest>, res: Response<CheckoutSummaryResponse>): Promise<Response<CheckoutSummaryResponse>> => {
   try {
-    const { name, phone, address, area, postalCode, origin, notes, couponCode } = req.body;
+    const { name, phone, area, postalCode, origin, notes, couponCode } = req.body;
+    const isPickup = isPickupOrder(req.body.address, area);
+    // Pickup customers don't need to supply an address
+    const address = isPickup ? PICKUP_LOCATION.address : req.body.address;
     if (!name || !phone || !address) {
       return res.status(400).json({ success: false, message: 'name, phone and address are required' });
     }
@@ -108,7 +121,7 @@ export const checkoutSummary = async (req: Request<{}, CheckoutSummaryResponse, 
     let deliveryFee: number;
     let deliveryDetails: Omit<DeliveryInfo, 'fee'>;
 
-    if (isPickupAddress(address) || (area && isPickupAddress(area))) {
+    if (isPickup) {
       deliveryFee = 0;
       deliveryDetails = {
         address,
@@ -232,6 +245,14 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       couponCode
     } = req.body;
 
+    const isPickup = isPickupOrder(deliveryInfo?.address, area);
+    // Pickup orders are collected at the pickup point, so store that as the address
+    if (isPickup && deliveryInfo) {
+      deliveryInfo.address = PICKUP_LOCATION.address;
+      deliveryInfo.city = PICKUP_LOCATION.city;
+      deliveryInfo.state = PICKUP_LOCATION.state;
+    }
+
     // Validate required fields
     if (!deliveryInfo || !deliveryInfo.address || !deliveryInfo.city || !deliveryInfo.state || !deliveryInfo.phoneNumber) {
       await session.abortTransaction();
@@ -266,7 +287,7 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
     // Calculate delivery fee if not provided
     let calculatedDeliveryFee = deliveryFee;
     if (!calculatedDeliveryFee || calculatedDeliveryFee === 0) {
-      if (isPickupAddress(deliveryInfo.address) || (area && isPickupAddress(area))) {
+      if (isPickup) {
         calculatedDeliveryFee = 0;
       } else {
         const detectedZone = (area ? detectDeliveryZone(area) : null) || detectDeliveryZone(deliveryInfo.address);
