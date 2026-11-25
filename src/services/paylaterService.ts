@@ -14,7 +14,7 @@ import emailService from './emailService';
 // Default settings
 const DEFAULT_SETTINGS = {
   markupPercentage: 10,
-  defaultRepaymentDays: 30,
+  defaultRepaymentDays: 90, // 3 months
   minCreditLimit: 50000,
   maxCreditLimit: 500000,
   deliveryFee: 2500

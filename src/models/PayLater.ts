@@ -454,7 +454,7 @@ const PayLaterSettingsSchema = new Schema<IPayLaterSettings>({
   defaultRepaymentDays: {
     type: Number,
     required: true,
-    default: 30
+    default: 90 // 3 months
   },
   minCreditLimit: {
     type: Number,
